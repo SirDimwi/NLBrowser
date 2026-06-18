@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus Legacy — Dashboard</title>
+<style>
+  :root {
+    --bg: #0a0d14;
+    --panel: #111827;
+    --panel2: #1a2235;
+    --border: #1f2d45;
+    --accent: #3b82f6;
+    --accent2: #06b6d4;
+    --green: #10b981;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --purple: #8b5cf6;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --ore: #f97316;
+    --sil: #a3e635;
+    --hyd: #38bdf8;
+    --aly: #c084fc;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* Header */
+  header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: 1px; color: var(--accent2); }
+  header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 12px; }
+  .refresh-btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all .15s; }
+  .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .last-updated { color: var(--muted); font-size: 12px; }
+  .user-chip { display:flex; align-items:center; gap:8px; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:5px 12px; font-size:12px; }
+  .user-chip strong { color:var(--accent2); }
+  .user-chip span { color:var(--muted); }
+
+  /* Login page */
+  #login-screen { display:none; min-height:100vh; align-items:center; justify-content:center; background:var(--bg); }
+  #login-screen.visible { display:flex; }
+  .login-card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:40px; max-width:480px; width:100%; text-align:center; }
+  .login-logo { font-size:28px; font-weight:800; letter-spacing:2px; color:var(--accent2); margin-bottom:6px; }
+  .login-sub { color:var(--muted); font-size:14px; margin-bottom:32px; }
+  .login-steps { text-align:left; margin-bottom:28px; }
+  .login-step { display:flex; gap:14px; align-items:flex-start; margin-bottom:16px; }
+  .step-num { width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px; }
+  .step-text { font-size:13px; color:var(--text); line-height:1.5; }
+  .step-text small { color:var(--muted); display:block; }
+  .login-error { background:#1f0f0f; border:1px solid var(--red); color:var(--red); border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:none; }
+  .login-error.visible { display:block; }
+
+  /* Nav tabs */
+  nav { background: var(--panel); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; gap: 4px; overflow-x: auto; }
+  nav button { background: none; border: none; color: var(--muted); padding: 12px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; white-space: nowrap; transition: all .15s; }
+  nav button:hover { color: var(--text); }
+  nav button.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+  .badge { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 11px; margin-left: 5px; }
+
+  /* Layout */
+  main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+  /* Cards */
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .card-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-header h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .card-body { padding: 16px; }
+
+  /* Stat boxes */
+  .stat { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 700; }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  /* Resource bar */
+  .resource-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .resource-row:last-child { margin-bottom: 0; }
+  .resource-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .resource-info { flex: 1; }
+  .resource-name { font-size: 12px; color: var(--muted); }
+  .resource-amount { font-size: 15px; font-weight: 600; }
+  .resource-rate { font-size: 11px; color: var(--green); }
+  .bar-track { background: var(--border); border-radius: 3px; height: 4px; margin-top: 4px; }
+  .bar-fill { height: 4px; border-radius: 3px; }
+
+  /* Mission list */
+  .mission-item { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .mission-item:last-child { margin-bottom: 0; }
+  .mission-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .mission-type { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; padding: 2px 8px; border-radius: 4px; }
+  .mission-status { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .mission-target { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .mission-fleet { font-size: 12px; color: var(--muted); }
+  .mission-timer { font-size: 12px; color: var(--accent2); font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .mission-cargo { font-size: 12px; color: var(--yellow); margin-top: 2px; }
+
+  /* Report list */
+  .report-item { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .report-item:last-child { margin-bottom: 0; }
+  .report-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .report-title { font-size: 13px; font-weight: 600; }
+  .report-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .report-system { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .report-desc { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+  .report-loot { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .loot-tag { background: #1e3a2f; border: 1px solid #166534; color: var(--green); font-size: 11px; padding: 2px 7px; border-radius: 4px; }
+
+  /* Research grid */
+  .research-item { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .research-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .research-branch { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 6px; }
+  .research-level { display: flex; gap: 4px; margin-bottom: 6px; }
+  .level-pip { width: 12px; height: 4px; border-radius: 2px; background: var(--border); }
+  .level-pip.filled { background: var(--accent); }
+  .research-status { font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; }
+  .research-active { background: #1e3a2f; color: var(--green); border: 1px solid #166534; }
+  .research-maxed { background: #1e2a4a; color: var(--accent); border: 1px solid #1e40af; }
+
+  /* Type color helpers */
+  .type-survey    { background: #1e3a2f; color: var(--green); }
+  .type-patrol    { background: #1a2235; color: var(--accent); }
+  .type-expedition{ background: #2d1f3d; color: var(--purple); }
+  .type-mining    { background: #2d2010; color: var(--ore); }
+  .type-transport { background: #1a2235; color: var(--accent2); }
+  .type-collect_salvage { background: #2d2010; color: var(--yellow); }
+  .type-returning { color: var(--yellow); }
+  .type-attack    { background: #3d1414; color: var(--red); }
+  .type-spy       { background: #2d1f3d; color: var(--purple); }
+  .type-incoming  { background: #3d1414; color: var(--red); }
+
+  /* Incoming alert */
+  .incoming-alert { background: #1f0f0f; border: 1px solid var(--red); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .incoming-alert h3 { color: var(--red); font-size: 14px; margin-bottom: 8px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid #1a2235; font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--panel2); }
+
+  /* Loading / empty */
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .empty { text-align: center; padding: 30px; color: var(--muted); font-size: 13px; }
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .tag { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 4px; }
+  .tag-green { background: #1e3a2f; color: var(--green); border: 1px solid #166534; }
+  .tag-red { background: #3d1414; color: var(--red); border: 1px solid #7f1d1d; }
+  .tag-blue { background: #1e2a4a; color: var(--accent); border: 1px solid #1e40af; }
+  .tag-yellow { background: #2d2010; color: var(--yellow); border: 1px solid #92400e; }
+  .tag-purple { background: #2d1f3d; color: var(--purple); border: 1px solid #5b21b6; }
+
+  .zone-sentinel { color: #38bdf8; }
+  .zone-frontier { color: #f97316; }
+  .zone-core { color: #10b981; }
+
+  .progress-bar { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 6px; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width .3s; }
+
+  /* Research controls */
+  .r-filter-btn, .r-sort-btn {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--muted);
+    padding: 4px 11px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: all .15s;
+  }
+  .r-filter-btn:hover, .r-sort-btn:hover { color: var(--text); border-color: #3a4a6a; }
+  .r-filter-btn.active { background: #1a2a3a; border-color: var(--fc, var(--accent)); color: var(--fc, var(--accent)); }
+  .r-sort-btn.active { background: #1a2a3a; border-color: var(--accent); color: var(--accent); }
+
+  /* Research table view */
+  .r-table th { cursor: pointer; user-select: none; }
+  .r-table th:hover { color: var(--text); }
+  .r-table th.sorted { color: var(--accent2); }
+
+  scrollbar-width: thin;
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--panel); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Login screen -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">NEXUS LEGACY</div>
+    <div class="login-sub">Companion Dashboard</div>
+
+    <div id="login-error" class="login-error"></div>
+
+    <div class="login-steps">
+      <div class="login-step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          Install the Chrome extension
+          <small>Click "Add to Chrome" from the extension page</small>
+        </div>
+      </div>
+      <div class="login-step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          Log in to <strong>Nexus Legacy</strong> in your browser
+          <small>Any universe — the extension detects it automatically</small>
+        </div>
+      </div>
+      <div class="login-step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          Click the extension icon and press <strong>Open Dashboard</strong>
+          <small>You'll be logged in automatically</small>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding-top:20px;font-size:12px;color:var(--muted);">
+      <a href="/privacy.html" style="color:var(--accent);">Privacy Policy</a>
+      &nbsp;·&nbsp; Your session token never leaves the server
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" style="display:none;">
+<header>
+  <div style="display:flex;align-items:center;gap:20px;">
+    <h1>NEXUS LEGACY <span id="planet-name"></span></h1>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="user-chip">
+      <strong id="header-username"></strong>
+      <span id="header-universe"></span>
+    </div>
+    <span class="last-updated" id="last-updated">—</span>
+    <button class="refresh-btn" onclick="exportData()" id="export-btn">⬇ Export</button>
+    <button class="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
+    <button class="refresh-btn" onclick="logout()" style="color:var(--muted);">Log Out</button>
+  </div>
+</header>
+
+<nav id="nav">
+  <button class="active" onclick="showTab('overview')">Overview</button>
+  <button onclick="showTab('fleet')">Fleet <span id="mission-count" class="badge" style="display:none"></span></button>
+  <button onclick="showTab('reports')">Reports</button>
+  <button onclick="showTab('research')">Research</button>
+  <button onclick="showTab('market')">Market</button>
+</nav>
+
+<main>
+
+  <!-- OVERVIEW TAB -->
+  <div id="tab-overview" class="tab-content active">
+    <div id="incoming-banner"></div>
+
+    <div class="grid grid-4" style="margin-bottom:16px;" id="stat-grid">
+      <div class="loading"><div class="spinner"></div></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-header"><h3>Resources</h3><span id="res-updated" style="font-size:11px;color:var(--muted)"></span></div>
+        <div class="card-body" id="resources-panel"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Active Missions</h3></div>
+        <div class="card-body" id="missions-mini"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLEET TAB -->
+  <div id="tab-fleet" class="tab-content">
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-header"><h3>Active Missions</h3></div>
+        <div class="card-body" id="missions-full"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Incoming Fleets</h3></div>
+        <div class="card-body" id="incoming-panel"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+    <div class="grid grid-2" style="margin-top:16px;">
+      <div class="card">
+        <div class="card-header"><h3>Stationed Garrisons</h3></div>
+        <div class="card-body" id="garrisons-panel"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Survey Cooldowns</h3></div>
+        <div class="card-body" id="cooldowns-panel"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORTS TAB -->
+  <div id="tab-reports" class="tab-content">
+    <nav style="border:none;padding:0;margin-bottom:16px;background:transparent;">
+      <button class="active" onclick="showReportTab('survey')" id="rtab-survey">Survey</button>
+      <button onclick="showReportTab('spy')" id="rtab-spy">Spy</button>
+      <button onclick="showReportTab('expedition')" id="rtab-expedition">Expedition</button>
+      <button onclick="showReportTab('mining')" id="rtab-mining">Mining</button>
+      <button onclick="showReportTab('pirate')" id="rtab-pirate">Pirate</button>
+    </nav>
+    <div id="reports-content"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- RESEARCH TAB -->
+  <div id="tab-research" class="tab-content">
+
+    <!-- Controls bar -->
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+
+      <!-- Row 1: search + view toggle -->
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        <input id="r-search" type="text" placeholder="Search research…" oninput="applyResearch()"
+          style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;font-size:13px;outline:none;">
+        <div style="display:flex;gap:4px;">
+          <button class="refresh-btn" id="view-cards" onclick="setView('cards')" title="Card view">▦</button>
+          <button class="refresh-btn" id="view-table" onclick="setView('table')" title="Table view">☰</button>
+        </div>
+        <span id="r-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
+
+      <!-- Row 2: filters -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+        <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Branch</span>
+        <button class="r-filter-btn active" data-group="branch" data-val="all"   onclick="setFilter('branch','all')">All</button>
+        <button class="r-filter-btn"        data-group="branch" data-val="military" onclick="setFilter('branch','military')" style="--fc:var(--red)">Military</button>
+        <button class="r-filter-btn"        data-group="branch" data-val="economy"  onclick="setFilter('branch','economy')"  style="--fc:var(--green)">Economy</button>
+        <button class="r-filter-btn"        data-group="branch" data-val="science"  onclick="setFilter('branch','science')"  style="--fc:var(--accent2)">Science</button>
+        <span style="width:1px;background:var(--border);height:20px;margin:0 6px;"></span>
+        <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Status</span>
+        <button class="r-filter-btn active" data-group="status" data-val="all"        onclick="setFilter('status','all')">All</button>
+        <button class="r-filter-btn"        data-group="status" data-val="in_progress" onclick="setFilter('status','in_progress')" style="--fc:var(--green)">In Progress</button>
+        <button class="r-filter-btn"        data-group="status" data-val="completed"   onclick="setFilter('status','completed')"   style="--fc:var(--accent)">Completed</button>
+        <button class="r-filter-btn"        data-group="status" data-val="available"   onclick="setFilter('status','available')"   style="--fc:var(--yellow)">Available</button>
+        <button class="r-filter-btn"        data-group="status" data-val="locked"      onclick="setFilter('status','locked')"      style="--fc:var(--muted)">Locked</button>
+        <button class="r-filter-btn"        data-group="status" data-val="maxed"       onclick="setFilter('status','maxed')"       style="--fc:var(--purple)">Maxed</button>
+      </div>
+
+      <!-- Row 3: sort -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Sort</span>
+        <button class="r-sort-btn active" data-sort="default"     onclick="setSort('default')">Default</button>
+        <button class="r-sort-btn"        data-sort="name"        onclick="setSort('name')">Name A–Z</button>
+        <button class="r-sort-btn"        data-sort="era"         onclick="setSort('era')">Era</button>
+        <button class="r-sort-btn"        data-sort="level-asc"   onclick="setSort('level-asc')">Level ↑</button>
+        <button class="r-sort-btn"        data-sort="level-desc"  onclick="setSort('level-desc')">Level ↓</button>
+        <button class="r-sort-btn"        data-sort="progress"    onclick="setSort('progress')">Progress %</button>
+        <button class="r-sort-btn"        data-sort="time-asc"    onclick="setSort('time-asc')">Time ↑</button>
+        <button class="r-sort-btn"        data-sort="time-desc"   onclick="setSort('time-desc')">Time ↓</button>
+        <button class="r-sort-btn"        data-sort="cost-ore"    onclick="setSort('cost-ore')">Cost: Ore</button>
+        <button class="r-sort-btn"        data-sort="cost-total"  onclick="setSort('cost-total')">Cost: Total</button>
+        <button class="r-sort-btn"        data-sort="branch"      onclick="setSort('branch')">Branch</button>
+        <button class="r-sort-btn"        data-sort="category"    onclick="setSort('category')">Category</button>
+      </div>
+    </div>
+
+    <div id="research-output"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- MARKET TAB -->
+  <div id="tab-market" class="tab-content">
+    <div class="card">
+      <div class="card-header"><h3>Market Hubs</h3></div>
+      <div class="card-body" id="market-panel"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+</main>
+</div> <!-- /dashboard -->
+
+<script>
+let PLANET_ID = null;
+let allData = {};
+let timers = [];
+let reportTab = 'survey';
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function fmt(n) {
+  if (n == null) return '—';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+  return Math.floor(n).toLocaleString();
+}
+
+function countdown(dateStr) {
+  const diff = Math.max(0, new Date(dateStr) - Date.now());
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr);
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h/24)}d ago`;
+}
+
+function missionColor(type) {
+  const map = { survey:'type-survey', patrol:'type-patrol', expedition:'type-expedition',
+    mining:'type-mining', transport:'type-transport', collect_salvage:'type-collect_salvage',
+    attack:'type-attack', spy:'type-spy' };
+  return map[type] || 'tag-blue';
+}
+
+async function fetchData(endpoint) {
+  const res = await fetch(`/data/${endpoint}`);
+  if (!res.ok) throw new Error(`${endpoint}: ${res.status}`);
+  return res.json();
+}
+
+// ── Fetch all ─────────────────────────────────────────────────────────────────
+
+async function refreshAll() {
+  document.getElementById('last-updated').textContent = 'Refreshing...';
+  timers.forEach(clearInterval);
+  timers = [];
+
+  try {
+    const [planet, missions, incoming, garrisons, cooldowns, research, market] = await Promise.all([
+      fetchData(`planet/${PLANET_ID}`),
+      fetchData('missions'),
+      fetchData('incoming'),
+      fetchData('stationed-garrisons'),
+      fetchData('survey-cooldowns'),
+      fetchData('research'),
+      fetchData('market-hubs'),
+    ]);
+
+    allData = { planet, missions: missions.missions || [], incoming: incoming.incoming || [],
+      garrisons, cooldowns, research: research.research || [], market };
+
+    renderOverview();
+    renderFleet();
+    renderResearch();
+    renderMarket();
+    startTimers();
+
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    document.getElementById('planet-name').textContent = planet.planet?.name || '';
+  } catch(e) {
+    document.getElementById('last-updated').textContent = 'Error: ' + e.message;
+  }
+
+  // Load reports for active sub-tab
+  loadReports(reportTab);
+}
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+
+function renderOverview() {
+  const { planet, missions, incoming } = allData;
+  const p = planet?.planet;
+  if (!p) return;
+
+  // Incoming banner
+  const banner = document.getElementById('incoming-banner');
+  if (incoming.length > 0) {
+    banner.innerHTML = `<div class="incoming-alert"><h3>⚠ ${incoming.length} Incoming Fleet${incoming.length>1?'s':''}</h3>
+      ${incoming.map(f=>`<div style="font-size:13px;margin-bottom:4px;">
+        <span class="tag tag-red">${f.missionType||'unknown'}</span>
+        From: ${f.sourcePlanetName||'?'} — Arrives: <span class="mission-timer" data-time="${f.arrivesAt}"></span>
+      </div>`).join('')}</div>`;
+  } else {
+    banner.innerHTML = '';
+  }
+
+  // Stat grid
+  const activeMissions = missions.filter(m => m.status !== 'returning');
+  const returning = missions.filter(m => m.status === 'returning');
+  document.getElementById('stat-grid').innerHTML = `
+    <div class="stat"><div class="stat-label">Active Missions</div><div class="stat-value" style="color:var(--accent)">${activeMissions.length}</div><div class="stat-sub">${returning.length} returning</div></div>
+    <div class="stat"><div class="stat-label">Population</div><div class="stat-value">${fmt(p.population)}<span style="font-size:13px;color:var(--muted)">/${fmt(p.maxPopulation)}</span></div><div class="stat-sub" style="color:var(--green)">+${fmt(p.populationGrowthRate)}/h</div></div>
+    <div class="stat"><div class="stat-label">Energy</div><div class="stat-value" style="color:${p.energyProduced>=p.energyConsumed?'var(--green)':'var(--red)'}">${fmt(p.energyProduced)}<span style="font-size:13px;color:var(--muted)">/${fmt(p.energyConsumed)}</span></div><div class="stat-sub">surplus: ${fmt(p.energyProduced-p.energyConsumed)}</div></div>
+    <div class="stat"><div class="stat-label">Building Slots</div><div class="stat-value">${p.usedBuildingSlots}<span style="font-size:13px;color:var(--muted)">/${p.maxBuildingSlots}</span></div><div class="stat-sub">${p.maxBuildingSlots-p.usedBuildingSlots} free</div></div>
+  `;
+
+  // Resources
+  const resources = [
+    { name:'Ore',       val:p.ore,       max:p.oreStorage,       rate:p.oreRate,       color:'var(--ore)', icon:'⛏' },
+    { name:'Silicates', val:p.silicates, max:p.silicatesStorage, rate:p.silicatesRate, color:'var(--sil)', icon:'💠' },
+    { name:'Hydrogen',  val:p.hydrogen,  max:p.hydrogenStorage,  rate:p.hydrogenRate,  color:'var(--hyd)', icon:'💧' },
+    { name:'Alloys',    val:p.alloys,    max:p.alloysStorage,    rate:p.alloysRate,    color:'var(--aly)', icon:'⚙' },
+  ];
+  document.getElementById('resources-panel').innerHTML = resources.map(r => {
+    const pct = Math.min(100, (r.val / r.max) * 100);
+    return `<div class="resource-row">
+      <div class="resource-icon" style="background:${r.color}22">${r.icon}</div>
+      <div class="resource-info">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span class="resource-name">${r.name}</span>
+          <span class="resource-amount" style="color:${r.color}">${fmt(r.val)}<span style="font-size:11px;color:var(--muted)"> / ${fmt(r.max)}</span></span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${r.color}"></div></div>
+        <div class="resource-rate">+${fmt(r.rate)}/h</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Rare resources (non-zero)
+  const rares = [
+    { name:'Bio Extract', val:p.bioExtract, rate:p.bioExtractRate },
+    { name:'Cryo Ice', val:p.cryoIce, rate:p.cryoIceRate },
+    { name:'Quantum Dust', val:p.quantumDust, rate:p.quantumDustRate },
+    { name:'Plasma Core', val:p.plasmaCore, rate:p.plasmaCoreRate },
+    { name:'Dark Matter', val:p.darkMatter, rate:p.darkMatterRate },
+    { name:'Antimatter', val:p.antimatter, rate:p.antimatterRate },
+  ].filter(r => r.val > 0 || r.rate > 0);
+  if (rares.length) {
+    document.getElementById('resources-panel').innerHTML +=
+      `<div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Rare Resources</div>
+        ${rares.map(r=>`<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span style="color:var(--muted)">${r.name}</span>
+          <span style="color:var(--purple)">${r.val.toFixed(2)} <span style="color:var(--muted)">+${r.rate.toFixed(2)}/h</span></span>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  // Missions mini
+  renderMissionsList('missions-mini', missions.slice(0, 6));
+
+  const badge = document.getElementById('mission-count');
+  if (missions.length > 0) { badge.textContent = missions.length; badge.style.display = ''; }
+  else badge.style.display = 'none';
+}
+
+// ── Fleet ─────────────────────────────────────────────────────────────────────
+
+function renderFleet() {
+  const { missions, incoming, garrisons, cooldowns } = allData;
+
+  renderMissionsList('missions-full', missions);
+
+  // Incoming
+  const inEl = document.getElementById('incoming-panel');
+  if (!incoming.length) {
+    inEl.innerHTML = '<div class="empty">No incoming fleets</div>';
+  } else {
+    inEl.innerHTML = incoming.map(f => `
+      <div class="mission-item" style="border-color:var(--red)">
+        <div class="mission-header">
+          <span class="mission-type type-incoming">${f.missionType||'unknown'}</span>
+          <span class="mission-status">From: ${f.sourcePlanetName||'?'}</span>
+        </div>
+        <div class="mission-timer" data-time="${f.arrivesAt}">—</div>
+      </div>`).join('');
+  }
+
+  // Garrisons
+  const garEl = document.getElementById('garrisons-panel');
+  const gars = garrisons?.garrisons || [];
+  garEl.innerHTML = gars.length
+    ? `<table><thead><tr><th>Location</th><th>Ships</th></tr></thead><tbody>
+        ${gars.map(g=>`<tr><td>${g.planetName||g.targetPlanetId}</td><td>${(g.fleetComposition||[]).map(s=>`${s.quantity}× ${s.shipName}`).join(', ')}</td></tr>`).join('')}
+       </tbody></table>`
+    : '<div class="empty">No stationed garrisons</div>';
+
+  // Survey cooldowns
+  const cdEl = document.getElementById('cooldowns-panel');
+  const cds = cooldowns?.cooldowns || [];
+  cdEl.innerHTML = cds.length
+    ? `<table><thead><tr><th>System</th><th>Expires</th></tr></thead><tbody>
+        ${cds.map(c=>`<tr><td>${c.systemName||c.systemId}</td><td><span class="mission-timer" data-time="${c.expiresAt}">—</span></td></tr>`).join('')}
+       </tbody></table>`
+    : '<div class="empty">No active cooldowns</div>';
+}
+
+function renderMissionsList(containerId, missions) {
+  const el = document.getElementById(containerId);
+  if (!missions.length) { el.innerHTML = '<div class="empty">No active missions</div>'; return; }
+  el.innerHTML = missions.map(m => {
+    const isReturning = m.status === 'returning';
+    const arrivalTime = isReturning ? m.returnArrivesAt : m.arrivesAt;
+    const cargoKeys = Object.keys(m.cargo||{});
+    return `<div class="mission-item">
+      <div class="mission-header">
+        <span class="mission-type ${missionColor(m.missionType)}">${m.missionType?.replace(/_/g,' ')}</span>
+        <span class="mission-status ${isReturning?'type-returning':''}">${isReturning ? '← returning' : '→ outbound'}</span>
+      </div>
+      <div class="mission-target">${m.targetPlanetName || 'Deep Space'} <span style="color:var(--muted);font-size:11px;">${m.targetSystemId ? '· sys '+m.targetSystemId : ''}</span></div>
+      <div class="mission-fleet">${(m.fleetComposition||[]).map(s=>`${s.quantity}× ${s.shipName}`).join(', ')}</div>
+      ${arrivalTime ? `<div class="mission-timer" data-time="${arrivalTime}">—</div>` : ''}
+      ${cargoKeys.length ? `<div class="mission-cargo">Cargo: ${cargoKeys.map(k=>fmt(m.cargo[k])+' '+k).join(', ')}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+async function loadReports(tab) {
+  reportTab = tab;
+  ['survey','spy','expedition','mining','pirate'].forEach(t => {
+    document.getElementById('rtab-'+t)?.classList.toggle('active', t===tab);
+  });
+  const el = document.getElementById('reports-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+  const endpointMap = {
+    survey: 'survey-reports',
+    spy: 'spy-reports',
+    expedition: 'expedition-reports',
+    mining: 'mining-reports',
+    pirate: 'pirate-reports',
+  };
+
+  try {
+    const data = await fetchData(endpointMap[tab]);
+    const key = Object.keys(data)[0];
+    const items = data[key] || [];
+    if (!items.length) { el.innerHTML = '<div class="empty">No reports</div>'; return; }
+
+    el.innerHTML = `<div class="grid grid-2">${items.map(r => {
+      const loot = r.loot || r.resources || {};
+      const lootTags = Object.entries(loot).map(([k,v])=>`<span class="loot-tag">+${fmt(v)} ${k}</span>`).join('');
+      return `<div class="report-item">
+        <div class="report-header">
+          <span class="report-title">${r.eventTitle || r.title || r.reportType || 'Report'}</span>
+          <span class="report-time">${timeAgo(r.createdAt)}</span>
+        </div>
+        <div class="report-system">${r.systemName||''} ${r.securityZone?`<span class="zone-${r.securityZone}">[${r.securityZone}]</span>`:''}</div>
+        ${r.eventDescription||r.description ? `<div class="report-desc">${r.eventDescription||r.description}</div>` : ''}
+        ${lootTags ? `<div class="report-loot">${lootTags}</div>` : ''}
+        ${r.shipsLost?.length ? `<div style="margin-top:4px"><span class="tag tag-red">Ships lost: ${r.shipsLost.map(s=>s.quantity+'× '+s.shipName).join(', ')}</span></div>` : ''}
+        ${!r.isRead ? '<span class="tag tag-blue" style="margin-top:4px;display:inline-block;">NEW</span>' : ''}
+      </div>`;
+    }).join('')}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+function showReportTab(tab) { loadReports(tab); }
+
+// ── Research ──────────────────────────────────────────────────────────────────
+
+// ── Research ──────────────────────────────────────────────────────────────────
+
+let rState = { branch: 'all', status: 'all', sort: 'default', view: 'cards', search: '' };
+
+function renderResearch() { applyResearch(); }
+
+function setFilter(group, val) {
+  rState[group] = val;
+  document.querySelectorAll(`.r-filter-btn[data-group="${group}"]`).forEach(b => b.classList.toggle('active', b.dataset.val === val));
+  applyResearch();
+}
+
+function setSort(val) {
+  rState.sort = val;
+  document.querySelectorAll('.r-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === val));
+  applyResearch();
+}
+
+function setView(val) {
+  rState.view = val;
+  document.getElementById('view-cards').style.borderColor = val==='cards' ? 'var(--accent)' : '';
+  document.getElementById('view-table').style.borderColor = val==='table' ? 'var(--accent)' : '';
+  applyResearch();
+}
+
+function rStatusOf(r) {
+  if (r.status === 'in_progress') return 'in_progress';
+  if (r.isMaxed) return 'maxed';
+  if (r.status === 'completed' || r.level > 0) return 'completed';
+  if (!r.eraUnlocked) return 'locked';
+  return 'available';
+}
+
+function applyResearch() {
+  const search = (document.getElementById('r-search')?.value || '').toLowerCase();
+  rState.search = search;
+
+  let list = (allData.research || []).filter(r => {
+    if (rState.branch !== 'all' && r.branch !== rState.branch) return false;
+    const st = rStatusOf(r);
+    if (rState.status !== 'all' && st !== rState.status) return false;
+    if (search && !r.name.toLowerCase().includes(search) && !r.category?.toLowerCase().includes(search) && !(r.description||'').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  // Sort
+  const sorters = {
+    default:     (a,b) => a.era - b.era || a.sortOrder - b.sortOrder,
+    name:        (a,b) => a.name.localeCompare(b.name),
+    era:         (a,b) => a.era - b.era || a.branch.localeCompare(b.branch),
+    'level-asc': (a,b) => a.level - b.level,
+    'level-desc':(a,b) => b.level - a.level,
+    progress:    (a,b) => (b.level/b.maxLevel) - (a.level/a.maxLevel),
+    'time-asc':  (a,b) => (a.nextResearchTime||0) - (b.nextResearchTime||0),
+    'time-desc': (a,b) => (b.nextResearchTime||0) - (a.nextResearchTime||0),
+    'cost-ore':  (a,b) => (a.nextCostOre||0) - (b.nextCostOre||0),
+    'cost-total':(a,b) => ((a.nextCostOre||0)+(a.nextCostSilicates||0)+(a.nextCostHydrogen||0)+(a.nextCostAlloys||0)) - ((b.nextCostOre||0)+(b.nextCostSilicates||0)+(b.nextCostHydrogen||0)+(b.nextCostAlloys||0)),
+    branch:      (a,b) => a.branch.localeCompare(b.branch) || a.category.localeCompare(b.category),
+    category:    (a,b) => (a.category||'').localeCompare(b.category||'') || a.name.localeCompare(b.name),
+  };
+  list.sort(sorters[rState.sort] || sorters.default);
+
+  document.getElementById('r-count').textContent = `${list.length} item${list.length!==1?'s':''}`;
+  const el = document.getElementById('research-output');
+  if (!list.length) { el.innerHTML = '<div class="empty">No matching research</div>'; return; }
+  el.innerHTML = rState.view === 'table' ? renderResearchTable(list) : renderResearchCards(list);
+}
+
+const branchColor = { military:'var(--red)', economy:'var(--green)', science:'var(--accent2)' };
+const statusBadge = {
+  in_progress: '<span class="tag tag-green">In Progress</span>',
+  maxed:       '<span class="tag tag-blue">Maxed</span>',
+  completed:   '<span class="tag" style="background:#1a2235;color:var(--accent);border:1px solid #1e40af;">Leveled</span>',
+  available:   '<span class="tag tag-yellow">Available</span>',
+  locked:      '<span class="tag" style="background:#1a1a2a;color:var(--muted);border:1px solid #2a2a4a;">Locked</span>',
+};
+
+function renderResearchCards(list) {
+  return `<div class="grid grid-3">${list.map(r => {
+    const st = rStatusOf(r);
+    const pips = Array.from({length:r.maxLevel},(_,i)=>`<div class="level-pip ${i<r.level?'filled':''}"></div>`).join('');
+    const pct = Math.round((r.level / r.maxLevel) * 100);
+    const totalCost = (r.nextCostOre||0)+(r.nextCostSilicates||0)+(r.nextCostHydrogen||0)+(r.nextCostAlloys||0);
+    const effects = (r.effects||[]).filter(e=>e.value).map(e=>`<span style="font-size:11px;color:var(--muted)">${e.type.replace(/_/g,' ')} ${e.value>0?'+':''}${(e.value*100).toFixed(0)}%</span>`).join(' · ');
+    return `<div class="research-item" style="position:relative;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+        <div class="research-name">${r.name}</div>
+        ${statusBadge[st]||''}
+      </div>
+      <div class="research-branch" style="color:${branchColor[r.branch]||'var(--muted)'}">
+        Era ${r.era} · ${r.branch} · ${(r.category||'').replace(/_/g,' ')}
+      </div>
+      <div style="margin:8px 0 4px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;">
+          <span>Level ${r.level} / ${r.maxLevel}</span><span>${pct}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      </div>
+      ${st==='in_progress' ? `<div style="font-size:12px;color:var(--green);margin-top:6px;">Completes: <span class="mission-timer" data-time="${r.endsAt}">—</span></div>` : ''}
+      ${!r.isMaxed&&totalCost>0 ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+        ${r.nextCostOre   ? `<span style="color:var(--ore)">⛏ ${fmt(r.nextCostOre)}</span>` : ''}
+        ${r.nextCostSilicates ? `<span style="color:var(--sil)">💠 ${fmt(r.nextCostSilicates)}</span>` : ''}
+        ${r.nextCostHydrogen  ? `<span style="color:var(--hyd)">💧 ${fmt(r.nextCostHydrogen)}</span>` : ''}
+        ${r.nextCostAlloys    ? `<span style="color:var(--aly)">⚙ ${fmt(r.nextCostAlloys)}</span>` : ''}
+        <span>⏱ ${Math.round((r.nextResearchTime||0)/60)}m</span>
+      </div>` : ''}
+      ${effects ? `<div style="margin-top:6px;line-height:1.6;">${effects}</div>` : ''}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderResearchTable(list) {
+  return `<div class="card"><table class="r-table">
+    <thead><tr>
+      <th onclick="setSort('name')" class="${rState.sort==='name'?'sorted':''}">Name ↕</th>
+      <th onclick="setSort('branch')" class="${rState.sort==='branch'?'sorted':''}">Branch ↕</th>
+      <th onclick="setSort('category')" class="${rState.sort==='category'?'sorted':''}">Category ↕</th>
+      <th onclick="setSort('era')" class="${rState.sort==='era'?'sorted':''}">Era ↕</th>
+      <th onclick="setSort('progress')" class="${rState.sort==='progress'?'sorted':''}">Progress ↕</th>
+      <th>Status</th>
+      <th onclick="setSort('cost-ore')" class="${rState.sort==='cost-ore'?'sorted':''}">Ore ↕</th>
+      <th onclick="setSort('cost-total')" class="${rState.sort==='cost-total'?'sorted':''}">Total Cost ↕</th>
+      <th onclick="setSort('time-asc')" class="${rState.sort==='time-asc'||rState.sort==='time-desc'?'sorted':''}">Time ↕</th>
+    </tr></thead>
+    <tbody>${list.map(r => {
+      const st = rStatusOf(r);
+      const pct = Math.round((r.level/r.maxLevel)*100);
+      const totalCost = (r.nextCostOre||0)+(r.nextCostSilicates||0)+(r.nextCostHydrogen||0)+(r.nextCostAlloys||0);
+      return `<tr>
+        <td style="font-weight:500">${r.name}</td>
+        <td style="color:${branchColor[r.branch]||'var(--muted)'}">${r.branch}</td>
+        <td style="color:var(--muted)">${(r.category||'').replace(/_/g,' ')}</td>
+        <td style="text-align:center">${r.era}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="progress-bar" style="width:60px"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <span style="font-size:11px;color:var(--muted)">${r.level}/${r.maxLevel}</span>
+          </div>
+        </td>
+        <td>${statusBadge[st]||''} ${st==='in_progress'?`<span class="mission-timer" data-time="${r.endsAt}" style="font-size:11px;color:var(--green)"></span>`:''}</td>
+        <td style="color:var(--ore)">${r.nextCostOre?fmt(r.nextCostOre):'—'}</td>
+        <td style="color:var(--muted)">${totalCost?fmt(totalCost):'—'}</td>
+        <td style="color:var(--muted)">${r.nextResearchTime?Math.round(r.nextResearchTime/60)+'m':'—'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+// ── Market ────────────────────────────────────────────────────────────────────
+
+function renderMarket() {
+  const hubs = allData.market?.hubs || allData.market?.marketHubs || [];
+  const el = document.getElementById('market-panel');
+  if (!hubs.length) { el.innerHTML = '<div class="empty">No market data</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>Hub</th><th>System</th><th>Zone</th><th>Distance</th></tr></thead>
+    <tbody>${hubs.map(h=>`<tr>
+      <td>${h.name||h.stationName||h.id}</td>
+      <td>${h.systemName||h.systemId||'—'}</td>
+      <td class="zone-${h.securityZone}">${h.securityZone||'—'}</td>
+      <td>${h.distance!=null?fmt(h.distance)+' ly':'—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ── Timer ticker ──────────────────────────────────────────────────────────────
+
+function startTimers() {
+  const tick = () => {
+    document.querySelectorAll('[data-time]').forEach(el => {
+      el.textContent = countdown(el.dataset.time);
+    });
+  };
+  tick();
+  timers.push(setInterval(tick, 1000));
+  // Auto-refresh every 60s
+  timers.push(setTimeout(refreshAll, 60000));
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('nav > button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (name === 'reports') loadReports(reportTab);
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+
+async function exportData() {
+  const btn = document.getElementById('export-btn');
+  btn.textContent = '⏳ Exporting...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/export', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      btn.textContent = '✓ Exported';
+      btn.style.color = 'var(--green)';
+      setTimeout(() => { btn.textContent = '⬇ Export'; btn.style.color = ''; btn.disabled = false; }, 3000);
+    } else {
+      throw new Error(data.error);
+    }
+  } catch(e) {
+    btn.textContent = '✗ Failed';
+    btn.style.color = 'var(--red)';
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = '⬇ Export'; btn.style.color = ''; }, 3000);
+    console.error(e);
+  }
+}
+
+// ── Auth & Boot ───────────────────────────────────────────────────────────────
+
+async function logout() {
+  await fetch('/logout', { method: 'POST' });
+  location.reload();
+}
+
+async function boot() {
+  // Check for error param from /auth redirect
+  const params = new URLSearchParams(location.search);
+  const err = params.get('error');
+
+  const res = await fetch('/me');
+  const data = await res.json();
+
+  if (!data.authenticated) {
+    document.getElementById('login-screen').classList.add('visible');
+    if (err) {
+      const msgs = {
+        missing_token: 'No token provided.',
+        invalid_token: 'Invalid session token.',
+        token_expired: 'Your Nexus Legacy session has expired. Please log in to the game again.',
+      };
+      const el = document.getElementById('login-error');
+      el.textContent = msgs[err] || 'Authentication failed.';
+      el.classList.add('visible');
+    }
+    return;
+  }
+
+  // Authenticated — show dashboard
+  PLANET_ID = data.user.planetId;
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('header-username').textContent = data.user.username;
+  document.getElementById('header-universe').textContent = data.user.universeKey?.toUpperCase();
+
+  // If planet wasn't found at login, retry discovery now
+  if (!PLANET_ID) {
+    try {
+      const dr = await fetch('/data/discover-planet', { method: 'POST' });
+      const dd = await dr.json();
+      if (dd.planetId) PLANET_ID = dd.planetId;
+    } catch {}
+  }
+
+  // Clean error param from URL
+  if (err) history.replaceState({}, '', '/');
+
+  refreshAll();
+}
+
+boot();
+</script>
+</body>
+</html>

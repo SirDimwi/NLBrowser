@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Privacy Policy — Nexus Legacy Dashboard</title>
+<style>
+  body { max-width: 700px; margin: 60px auto; font-family: system-ui, sans-serif; line-height: 1.7; color: #e2e8f0; background: #0a0d14; padding: 0 24px 80px; }
+  h1 { color: #06b6d4; margin-bottom: 8px; }
+  h2 { color: #e2e8f0; margin: 32px 0 8px; font-size: 16px; }
+  p, li { color: #94a3b8; }
+  a { color: #3b82f6; }
+  .updated { color: #64748b; font-size: 13px; margin-bottom: 40px; }
+</style>
+</head>
+<body>
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: June 2026</p>
+
+<p>Nexus Legacy Dashboard is a personal companion tool for the browser game <a href="https://nexuslegacy.space">Nexus Legacy</a>. This policy explains what data we access and how we handle it.</p>
+
+<h2>What data we access</h2>
+<p>The Chrome extension reads the <code>nexus_token</code> cookie from <code>nexuslegacy.space</code>. This cookie is a session token issued by Nexus Legacy when you log in. It is used solely to authenticate requests to the Nexus Legacy API on your behalf.</p>
+
+<h2>How we use your data</h2>
+<ul>
+  <li>Your session token is sent to the dashboard server and stored in a temporary server-side session.</li>
+  <li>The token is used to fetch your in-game data (fleet, research, planet resources, reports) from the Nexus Legacy API.</li>
+  <li>We do not share your token or any personal data with third parties.</li>
+  <li>We do not sell, rent, or trade your data.</li>
+  <li>Your session expires after 7 days or when you log out.</li>
+</ul>
+
+<h2>Data storage</h2>
+<p>No personal data is stored permanently. Session data is held in memory and discarded when you log out or the session expires. The optional Export feature writes a JSON snapshot to your local machine only.</p>
+
+<h2>Third-party services</h2>
+<p>This tool communicates exclusively with <code>nexuslegacy.space</code> APIs. No analytics, tracking, or advertising services are used.</p>
+
+<h2>Your rights</h2>
+<p>You can log out at any time via the extension popup or the dashboard, which immediately destroys your session. You can also revoke the extension's access by uninstalling it from Chrome.</p>
+
+<h2>Contact</h2>
+<p>For questions about this policy, please open an issue on the project repository.</p>
+</body>
+</html>
