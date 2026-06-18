@@ -254,6 +254,28 @@
   </div>
 </div>
 
+<!-- Export modal -->
+<div id="export-backdrop" class="modal-backdrop hidden">
+  <div class="modal-box" style="max-width:480px;">
+    <h3 style="margin-bottom:12px;">⬇ Export Game Data</h3>
+    <p style="font-size:13px;color:var(--text);line-height:1.7;margin-bottom:12px;">
+      Your export is a full snapshot of your game state — research levels, planet resources, fleet missions, market data, and more — all in a single JSON file.
+    </p>
+    <p style="font-size:13px;color:var(--text);line-height:1.7;margin-bottom:12px;">
+      Drop it into any LLM alongside a Nexus Legacy guide and ask for real-time advice: what to research next, how to optimise your economy, when to expand, and more.
+    </p>
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.7;">
+      <strong style="color:var(--accent2);display:block;margin-bottom:4px;">Guide authors</strong>
+      Want your guide linked here so players can reference it alongside their export? Ping <strong style="color:var(--text);">@SirDimwit</strong> on the Nexus Legacy Discord server.
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button class="modal-cancel" onclick="document.getElementById('export-backdrop').classList.add('hidden')">Cancel</button>
+      <button class="modal-submit" id="export-confirm-btn" onclick="doExport()">Download Export</button>
+    </div>
+    <div class="modal-status" id="export-status"></div>
+  </div>
+</div>
+
 <!-- Patch notes modal -->
 <div id="patch-backdrop" class="modal-backdrop hidden">
   <div class="modal-box" style="max-width:500px;">
@@ -1082,15 +1104,25 @@ boot();
 
 // ── Export ────────────────────────────────────────────────────────────────────
 
-async function exportData() {
-  const btn = document.getElementById('export-btn');
+function exportData() {
+  document.getElementById('export-backdrop').classList.remove('hidden');
+  document.getElementById('export-status').className = 'modal-status';
+  document.getElementById('export-confirm-btn').disabled = false;
+  document.getElementById('export-confirm-btn').textContent = 'Download Export';
+}
+
+async function doExport() {
+  const btn = document.getElementById('export-confirm-btn');
+  const statusEl = document.getElementById('export-status');
   btn.disabled = true;
   btn.textContent = '⏳ Exporting…';
+  statusEl.className = 'modal-status';
   try {
     const res = await fetch('/export', { method: 'POST' });
     if (!res.ok) {
       const err = await res.json();
-      alert('Export failed: ' + (err.error || res.status));
+      statusEl.textContent = 'Export failed: ' + (err.error || res.status);
+      statusEl.className = 'modal-status err';
       return;
     }
     const blob = await res.blob();
@@ -1100,13 +1132,20 @@ async function exportData() {
     a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'nexus-export.json';
     a.click();
     URL.revokeObjectURL(url);
+    document.getElementById('export-backdrop').classList.add('hidden');
   } catch (e) {
-    alert('Export failed: ' + e.message);
+    statusEl.textContent = 'Export failed: ' + e.message;
+    statusEl.className = 'modal-status err';
   } finally {
     btn.disabled = false;
-    btn.textContent = '⬇ Export';
+    btn.textContent = 'Download Export';
   }
 }
+
+document.getElementById('export-backdrop').addEventListener('click', e => {
+  if (e.target === document.getElementById('export-backdrop'))
+    document.getElementById('export-backdrop').classList.add('hidden');
+});
 
 // ── Consent banner ───────────────────────────────────────────────────────────
 
