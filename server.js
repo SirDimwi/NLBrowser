@@ -323,7 +323,6 @@ app.post('/auth/manual', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Dev shortcut: auto-login from .env token (localhost only)
 app.get('/dev-login', async (req, res) => {
   if (process.env.NODE_ENV === 'production') return res.status(403).send('Forbidden');
   const raw = process.env.NEXUS_COOKIE || '';
