@@ -212,35 +212,33 @@
     <!-- Row 2: filters -->
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
       <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Branch</span>
-      <button class="r-filter-btn active" data-group="branch" data-val="all"      onclick="setFilter('branch','all')">All</button>
-      <button class="r-filter-btn"        data-group="branch" data-val="military"  onclick="setFilter('branch','military')"  style="--fc:var(--red)">Military</button>
-      <button class="r-filter-btn"        data-group="branch" data-val="economy"   onclick="setFilter('branch','economy')"   style="--fc:var(--green)">Economy</button>
-      <button class="r-filter-btn"        data-group="branch" data-val="science"   onclick="setFilter('branch','science')"   style="--fc:var(--accent2)">Science</button>
+      <button class="r-filter-btn active" data-group="branch" data-val="all"        onclick="toggleBranch('all')">All</button>
+      <button class="r-filter-btn"        data-group="branch" data-val="military"   onclick="toggleBranch('military')"  style="--fc:var(--red)">Military</button>
+      <button class="r-filter-btn"        data-group="branch" data-val="economy"    onclick="toggleBranch('economy')"   style="--fc:var(--green)">Economy</button>
+      <button class="r-filter-btn"        data-group="branch" data-val="science"    onclick="toggleBranch('science')"   style="--fc:var(--accent2)">Science</button>
       <span style="width:1px;background:var(--border);height:20px;margin:0 6px;"></span>
       <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Status</span>
-      <button class="r-filter-btn active" data-group="status" data-val="all"        onclick="setFilter('status','all')">All</button>
-      <button class="r-filter-btn"        data-group="status" data-val="in_progress" onclick="setFilter('status','in_progress')" style="--fc:var(--green)">In Progress</button>
-      <button class="r-filter-btn"        data-group="status" data-val="completed"   onclick="setFilter('status','completed')"   style="--fc:var(--accent)">Completed</button>
-      <button class="r-filter-btn"        data-group="status" data-val="available"   onclick="setFilter('status','available')"   style="--fc:var(--yellow)">Available</button>
-      <button class="r-filter-btn"        data-group="status" data-val="locked"      onclick="setFilter('status','locked')"      style="--fc:var(--muted)">Locked</button>
-      <button class="r-filter-btn"        data-group="status" data-val="maxed"       onclick="setFilter('status','maxed')"       style="--fc:var(--purple)">Maxed</button>
+      <button class="r-filter-btn active" data-group="status" data-val="all"        onclick="toggleStatus('all')">All</button>
+      <button class="r-filter-btn"        data-group="status" data-val="in_progress" onclick="toggleStatus('in_progress')" style="--fc:var(--green)">In Progress</button>
+      <button class="r-filter-btn"        data-group="status" data-val="completed"   onclick="toggleStatus('completed')"   style="--fc:var(--accent)">Completed</button>
+      <button class="r-filter-btn"        data-group="status" data-val="available"   onclick="toggleStatus('available')"   style="--fc:var(--yellow)">Available</button>
+      <button class="r-filter-btn"        data-group="status" data-val="locked"      onclick="toggleStatus('locked')"      style="--fc:var(--muted)">Locked</button>
+      <button class="r-filter-btn"        data-group="status" data-val="maxed"       onclick="toggleStatus('maxed')"       style="--fc:var(--purple)">Maxed</button>
     </div>
 
     <!-- Row 3: sort -->
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
       <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Sort</span>
-      <button class="r-sort-btn active" data-sort="default"     onclick="setSort('default')">Default</button>
-      <button class="r-sort-btn"        data-sort="name"        onclick="setSort('name')">Name A–Z</button>
-      <button class="r-sort-btn"        data-sort="era"         onclick="setSort('era')">Era</button>
-      <button class="r-sort-btn"        data-sort="level-asc"   onclick="setSort('level-asc')">Level ↑</button>
-      <button class="r-sort-btn"        data-sort="level-desc"  onclick="setSort('level-desc')">Level ↓</button>
-      <button class="r-sort-btn"        data-sort="progress"    onclick="setSort('progress')">Progress %</button>
-      <button class="r-sort-btn"        data-sort="time-asc"    onclick="setSort('time-asc')">Time ↑</button>
-      <button class="r-sort-btn"        data-sort="time-desc"   onclick="setSort('time-desc')">Time ↓</button>
-      <button class="r-sort-btn"        data-sort="cost-ore"    onclick="setSort('cost-ore')">Cost: Ore</button>
-      <button class="r-sort-btn"        data-sort="cost-total"  onclick="setSort('cost-total')">Cost: Total</button>
-      <button class="r-sort-btn"        data-sort="branch"      onclick="setSort('branch')">Branch</button>
-      <button class="r-sort-btn"        data-sort="category"    onclick="setSort('category')">Category</button>
+      <button class="r-sort-btn active" data-sort="default"    onclick="setSort('default')">Default</button>
+      <button class="r-sort-btn"        data-sort="name"       onclick="setSort('name')">Name</button>
+      <button class="r-sort-btn"        data-sort="era"        onclick="setSort('era')">Era</button>
+      <button class="r-sort-btn"        data-sort="level"      onclick="setSort('level')">Level</button>
+      <button class="r-sort-btn"        data-sort="progress"   onclick="setSort('progress')">Progress %</button>
+      <button class="r-sort-btn"        data-sort="time"       onclick="setSort('time')">Time</button>
+      <button class="r-sort-btn"        data-sort="cost-ore"   onclick="setSort('cost-ore')">Cost: Ore</button>
+      <button class="r-sort-btn"        data-sort="cost-total" onclick="setSort('cost-total')">Cost: Total</button>
+      <button class="r-sort-btn"        data-sort="branch"     onclick="setSort('branch')">Branch</button>
+      <button class="r-sort-btn"        data-sort="category"   onclick="setSort('category')">Category</button>
     </div>
   </div>
 
@@ -252,6 +250,14 @@
   <div class="planner-header">
     <h3>Research Plan</h3>
     <button class="refresh-btn" onclick="clearPlan()" style="font-size:11px;padding:3px 9px;">Clear</button>
+  </div>
+  <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
+    <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
+    Each item represents <strong style="color:var(--text)">one level</strong> of a research at its current next-level cost. Costs are pulled live from the game — only the immediate next level is available.<br><br>
+    <strong style="color:var(--yellow)">⚠ Limitations</strong><br>
+    · Each research can only be added once<br>
+    · Costs for levels beyond the next are unknown<br>
+    · After completing a level in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update costs
   </div>
   <div class="planner-items" id="planner-items">
     <div class="plan-empty">Add research items using the + button</div>
@@ -266,7 +272,7 @@
 </div>
 
 <script>
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 
 let researchData = [];
 let refreshTimer = null;
@@ -317,17 +323,43 @@ async function refreshAll() {
 
 // ── Research ──────────────────────────────────────────────────────────────────
 
-let rState = { branch: 'all', status: 'all', sort: 'default', view: 'cards', search: '' };
+let rState = { branches: new Set(), statuses: new Set(), sortKey: 'default', sortDir: 'asc', view: 'cards', search: '' };
 
-function setFilter(group, val) {
-  rState[group] = val;
-  document.querySelectorAll(`.r-filter-btn[data-group="${group}"]`).forEach(b => b.classList.toggle('active', b.dataset.val === val));
+function toggleBranch(val) {
+  if (val === 'all') { rState.branches.clear(); }
+  else { rState.branches.has(val) ? rState.branches.delete(val) : rState.branches.add(val); }
+  updateFilterButtons();
   applyResearch();
 }
 
-function setSort(val) {
-  rState.sort = val;
-  document.querySelectorAll('.r-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === val));
+function toggleStatus(val) {
+  if (val === 'all') { rState.statuses.clear(); }
+  else { rState.statuses.has(val) ? rState.statuses.delete(val) : rState.statuses.add(val); }
+  updateFilterButtons();
+  applyResearch();
+}
+
+function updateFilterButtons() {
+  const noB = rState.branches.size === 0;
+  document.querySelectorAll('.r-filter-btn[data-group="branch"]').forEach(b => {
+    const v = b.dataset.val;
+    b.classList.toggle('active', v === 'all' ? noB : rState.branches.has(v));
+  });
+  const noS = rState.statuses.size === 0;
+  document.querySelectorAll('.r-filter-btn[data-group="status"]').forEach(b => {
+    const v = b.dataset.val;
+    b.classList.toggle('active', v === 'all' ? noS : rState.statuses.has(v));
+  });
+}
+
+function setSort(key) {
+  if (rState.sortKey === key) {
+    rState.sortDir = rState.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    rState.sortKey = key;
+    rState.sortDir = 'asc';
+  }
+  document.querySelectorAll('.r-sort-btn').forEach(b => b.classList.toggle('active', b.dataset.sort === key));
   applyResearch();
 }
 
@@ -352,28 +384,28 @@ function applyResearch() {
   rState.search = search;
 
   let list = researchData.filter(r => {
-    if (rState.branch !== 'all' && r.branch !== rState.branch) return false;
+    if (rState.branches.size > 0 && !rState.branches.has(r.branch)) return false;
     const st = rStatusOf(r);
-    if (rState.status !== 'all' && st !== rState.status) return false;
+    if (rState.statuses.size > 0 && !rState.statuses.has(st)) return false;
     if (search && !r.name.toLowerCase().includes(search) && !r.category?.toLowerCase().includes(search) && !(r.description||'').toLowerCase().includes(search)) return false;
     return true;
   });
 
   const sorters = {
-    default:      (a,b) => a.era - b.era || a.sortOrder - b.sortOrder,
-    name:         (a,b) => a.name.localeCompare(b.name),
-    era:          (a,b) => a.era - b.era || a.branch.localeCompare(b.branch),
-    'level-asc':  (a,b) => a.level - b.level,
-    'level-desc': (a,b) => b.level - a.level,
-    progress:     (a,b) => (b.level/b.maxLevel) - (a.level/a.maxLevel),
-    'time-asc':   (a,b) => (a.nextResearchTime||0) - (b.nextResearchTime||0),
-    'time-desc':  (a,b) => (b.nextResearchTime||0) - (a.nextResearchTime||0),
-    'cost-ore':   (a,b) => (a.nextCostOre||0) - (b.nextCostOre||0),
-    'cost-total': (a,b) => ((a.nextCostOre||0)+(a.nextCostSilicates||0)+(a.nextCostHydrogen||0)+(a.nextCostAlloys||0)) - ((b.nextCostOre||0)+(b.nextCostSilicates||0)+(b.nextCostHydrogen||0)+(b.nextCostAlloys||0)),
-    branch:       (a,b) => a.branch.localeCompare(b.branch) || a.category.localeCompare(b.category),
-    category:     (a,b) => (a.category||'').localeCompare(b.category||'') || a.name.localeCompare(b.name),
+    default:    (a,b) => a.era - b.era || (a.sortOrder - b.sortOrder),
+    name:       (a,b) => a.name.localeCompare(b.name),
+    era:        (a,b) => a.era - b.era || a.branch.localeCompare(b.branch),
+    level:      (a,b) => a.level - b.level,
+    progress:   (a,b) => (a.level/a.maxLevel) - (b.level/b.maxLevel),
+    time:       (a,b) => (a.nextResearchTime||0) - (b.nextResearchTime||0),
+    'cost-ore': (a,b) => (a.nextCostOre||0) - (b.nextCostOre||0),
+    'cost-total':(a,b)=> ((a.nextCostOre||0)+(a.nextCostSilicates||0)+(a.nextCostHydrogen||0)+(a.nextCostAlloys||0)) - ((b.nextCostOre||0)+(b.nextCostSilicates||0)+(b.nextCostHydrogen||0)+(b.nextCostAlloys||0)),
+    branch:     (a,b) => a.branch.localeCompare(b.branch) || (a.category||'').localeCompare(b.category||''),
+    category:   (a,b) => (a.category||'').localeCompare(b.category||'') || a.name.localeCompare(b.name),
+    status:     (a,b) => { const order = {in_progress:0,available:1,completed:2,maxed:3,locked:4}; return (order[rStatusOf(a)]??5) - (order[rStatusOf(b)]??5); },
   };
-  list.sort(sorters[rState.sort] || sorters.default);
+  const fn = sorters[rState.sortKey] || sorters.default;
+  list.sort((a,b) => rState.sortDir === 'asc' ? fn(a,b) : fn(b,a));
 
   document.getElementById('r-count').textContent = `${list.length} item${list.length!==1?'s':''}`;
   const el = document.getElementById('research-output');
@@ -480,18 +512,23 @@ function renderResearchColumns(list) {
   </div>`;
 }
 
+function sortArrow(key) {
+  if (rState.sortKey !== key) return ' <span style="color:var(--border)">↕</span>';
+  return rState.sortDir === 'asc' ? ' <span style="color:var(--accent2)">↑</span>' : ' <span style="color:var(--accent2)">↓</span>';
+}
+
 function renderResearchTable(list) {
   return `<div class="card"><table class="r-table">
     <thead><tr>
-      <th onclick="setSort('name')"       class="${rState.sort==='name'?'sorted':''}">Name ↕</th>
-      <th onclick="setSort('branch')"     class="${rState.sort==='branch'?'sorted':''}">Branch ↕</th>
-      <th onclick="setSort('category')"   class="${rState.sort==='category'?'sorted':''}">Category ↕</th>
-      <th onclick="setSort('era')"        class="${rState.sort==='era'?'sorted':''}">Era ↕</th>
-      <th onclick="setSort('progress')"   class="${rState.sort==='progress'?'sorted':''}">Progress ↕</th>
-      <th>Status</th>
-      <th onclick="setSort('cost-ore')"   class="${rState.sort==='cost-ore'?'sorted':''}">Ore ↕</th>
-      <th onclick="setSort('cost-total')" class="${rState.sort==='cost-total'?'sorted':''}">Total Cost ↕</th>
-      <th onclick="setSort('time-asc')"   class="${rState.sort==='time-asc'||rState.sort==='time-desc'?'sorted':''}">Time ↕</th>
+      <th onclick="setSort('name')"        class="${rState.sortKey==='name'?'sorted':''}">Name${sortArrow('name')}</th>
+      <th onclick="setSort('branch')"      class="${rState.sortKey==='branch'?'sorted':''}">Branch${sortArrow('branch')}</th>
+      <th onclick="setSort('category')"    class="${rState.sortKey==='category'?'sorted':''}">Category${sortArrow('category')}</th>
+      <th onclick="setSort('era')"         class="${rState.sortKey==='era'?'sorted':''}">Era${sortArrow('era')}</th>
+      <th onclick="setSort('progress')"    class="${rState.sortKey==='progress'?'sorted':''}">Progress${sortArrow('progress')}</th>
+      <th onclick="setSort('status')"       class="${rState.sortKey==='status'?'sorted':''}">Status${sortArrow('status')}</th>
+      <th onclick="setSort('cost-ore')"    class="${rState.sortKey==='cost-ore'?'sorted':''}">Ore${sortArrow('cost-ore')}</th>
+      <th onclick="setSort('cost-total')"  class="${rState.sortKey==='cost-total'?'sorted':''}">Total Cost${sortArrow('cost-total')}</th>
+      <th onclick="setSort('time')"        class="${rState.sortKey==='time'?'sorted':''}">Time${sortArrow('time')}</th>
       <th></th>
     </tr></thead>
     <tbody>${list.map(r => {
