@@ -470,7 +470,7 @@ function togglePlanner() {
 }
 
 function addToPlan(researchId) {
-  const r = researchData.find(r => r.id === researchId);
+  const r = researchData.find(r => r.id == researchId);
   if (!r || r.isMaxed) return;
   plan.push({
     uid: Date.now() + Math.random(),
