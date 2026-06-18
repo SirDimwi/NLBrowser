@@ -392,7 +392,7 @@
 </div>
 
 <script>
-const VERSION = '1.0.3';
+const VERSION = '1.0.8';
 
 let researchData = [];
 let refreshTimer = null;
@@ -1019,6 +1019,50 @@ function hasConsent() {
 // ── Patch notes ───────────────────────────────────────────────────────────────
 
 const PATCH_NOTES = [
+  {
+    version: '1.0.8',
+    date: '2026-06-18',
+    notes: [
+      'Planet selector — choose which planet to research from directly in the header',
+      'Lab-level locks — techs your selected planet\'s lab can\'t start are dimmed with a level requirement shown',
+      'Affordability indicators — resource costs turn red when your selected planet can\'t cover them',
+      'Active research job timer now reflects the selected planet\'s lab',
+    ],
+  },
+  {
+    version: '1.0.7',
+    date: '2026-06-18',
+    notes: [
+      'Manual login — provide your session token directly without the Chrome extension',
+      'Token is validated against the live API before creating a session',
+    ],
+  },
+  {
+    version: '1.0.6',
+    date: '2026-06-18',
+    notes: [
+      'Export button moved to the header and always visible',
+      'Export now downloads directly to your browser as a JSON file',
+    ],
+  },
+  {
+    version: '1.0.5',
+    date: '2026-06-17',
+    notes: [
+      'Consent banner — accept or decline anonymous usage analytics',
+      'Suggestion box — send feature ideas directly from the app',
+      'Patch notes modal (you\'re looking at it)',
+      'Startup health check for backend Redis connection',
+    ],
+  },
+  {
+    version: '1.0.4',
+    date: '2026-06-17',
+    notes: [
+      'Extended telemetry: view preferences, planner usage, session duration, bounce rate, retention, auth health',
+      'Migrated usage tracking to Upstash Redis for persistence across deploys',
+    ],
+  },
   {
     version: '1.0.3',
     date: '2026-06-17',
