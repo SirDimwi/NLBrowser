@@ -899,43 +899,43 @@ async function logout() {
   location.reload();
 }
 
+function showManualLogin() {
+  document.querySelector('.login-card-main').classList.add('hidden');
+  document.getElementById('manual-login-card').classList.add('visible');
+}
+function showMainLogin() {
+  document.querySelector('.login-card-main').classList.remove('hidden');
+  document.getElementById('manual-login-card').classList.remove('visible');
+  document.getElementById('manual-error').classList.remove('visible');
+  document.getElementById('manual-token').classList.remove('error');
+  document.getElementById('manual-token').value = '';
+}
+async function submitManualLogin() {
+  const input = document.getElementById('manual-token');
+  const errEl = document.getElementById('manual-error');
+  const token = input.value.trim();
+  errEl.classList.remove('visible');
+  input.classList.remove('error');
+  if (!token) { input.classList.add('error'); return; }
+  const btn = document.querySelector('#manual-login-card .btn:not(.login-back)');
+  btn.disabled = true; btn.textContent = 'Connecting…';
+  try {
+    const res = await fetch('/auth/manual', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token }) });
+    const data = await res.json();
+    if (res.ok) { window.location.href = '/'; return; }
+    errEl.textContent = data.error || 'Authentication failed.';
+    errEl.classList.add('visible');
+    input.classList.add('error');
+  } catch(e) {
+    errEl.textContent = 'Connection error. Please try again.';
+    errEl.classList.add('visible');
+  }
+  btn.disabled = false; btn.textContent = 'Connect';
+}
+
 async function boot() {
   const params = new URLSearchParams(location.search);
   const err = params.get('error');
-
-  function showManualLogin() {
-    document.querySelector('.login-card-main').classList.add('hidden');
-    document.getElementById('manual-login-card').classList.add('visible');
-  }
-  function showMainLogin() {
-    document.querySelector('.login-card-main').classList.remove('hidden');
-    document.getElementById('manual-login-card').classList.remove('visible');
-    document.getElementById('manual-error').classList.remove('visible');
-    document.getElementById('manual-token').classList.remove('error');
-    document.getElementById('manual-token').value = '';
-  }
-  async function submitManualLogin() {
-    const input = document.getElementById('manual-token');
-    const errEl = document.getElementById('manual-error');
-    const token = input.value.trim();
-    errEl.classList.remove('visible');
-    input.classList.remove('error');
-    if (!token) { input.classList.add('error'); return; }
-    const btn = document.querySelector('#manual-login-card .btn:not(.login-back)');
-    btn.disabled = true; btn.textContent = 'Connecting…';
-    try {
-      const res = await fetch('/auth/manual', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token }) });
-      const data = await res.json();
-      if (res.ok) { window.location.href = '/'; return; }
-      errEl.textContent = data.error || 'Authentication failed.';
-      errEl.classList.add('visible');
-      input.classList.add('error');
-    } catch(e) {
-      errEl.textContent = 'Connection error. Please try again.';
-      errEl.classList.add('visible');
-    }
-    btn.disabled = false; btn.textContent = 'Connect';
-  }
 
   const res = await fetch('/me');
   const data = await res.json();
