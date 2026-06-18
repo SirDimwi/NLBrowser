@@ -402,6 +402,17 @@ app.post('/data/discover-planet', requireAuth, async (req, res) => {
   res.json({ planetId });
 });
 
+app.get('/data/research-page/:techId', requireAuth, async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Dev only' });
+  try {
+    const html = await req.apiGet(`/research/${req.params.techId}`);
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(typeof html === 'string' ? html : JSON.stringify(html));
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/data/planets', requireAuth, async (req, res) => {
   try {
     const data = await req.apiGet('/api/planets');
