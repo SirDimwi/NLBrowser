@@ -1082,18 +1082,24 @@ function renderPlanner() {
 
   itemsEl.innerHTML = plan.map(p => {
     const prereqKeys = (p.requirements || []).filter(r => r.type === 'research').map(r => r.key);
-    const blockedByQueue = prereqKeys.some(k => {
-      const dep = researchData.find(r => r.key === k);
-      return dep && dep.level < dep.maxLevel && !dep.isMaxed && queuedKeys.has(k);
-    });
-    const blockedByExternal = (p.requiredLabLevel > 0 && planetContext.labLevel > 0 && planetContext.labLevel < p.requiredLabLevel)
-      || p.eraUnlocked === false;
+    const queuedBlockers = prereqKeys
+      .map(k => researchData.find(r => r.key === k))
+      .filter(dep => dep && dep.level < dep.maxLevel && !dep.isMaxed && queuedKeys.has(dep.key));
 
-    const blockTag = blockedByExternal
-      ? `<span title="Blocked by a non-research requirement (lab level, era, or building)" style="font-size:10px;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:1px 5px;flex-shrink:0;">⛔ Blocked</span>`
-      : blockedByQueue
-      ? `<span title="Waiting on a prerequisite also in this queue" style="font-size:10px;color:var(--yellow);border:1px solid var(--yellow);border-radius:3px;padding:1px 5px;flex-shrink:0;">⏳ Queued</span>`
+    const externalReasons = [];
+    if (p.requiredLabLevel > 0 && planetContext.labLevel > 0 && planetContext.labLevel < p.requiredLabLevel)
+      externalReasons.push(`Lab Lv${p.requiredLabLevel} required (you have Lv${planetContext.labLevel})`);
+    if (p.eraUnlocked === false)
+      externalReasons.push('Era not yet unlocked');
+
+    const blockTag = externalReasons.length
+      ? `<span title="${externalReasons.join(' · ')}" style="font-size:10px;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:1px 5px;flex-shrink:0;cursor:help;">⛔ ${externalReasons[0]}</span>`
+      : queuedBlockers.length
+      ? `<span title="Waiting on: ${queuedBlockers.map(d=>d.name).join(', ')}" style="font-size:10px;color:var(--yellow);border:1px solid var(--yellow);border-radius:3px;padding:1px 5px;flex-shrink:0;cursor:help;">⏳ After: ${queuedBlockers.map(d=>d.name).join(', ')}</span>`
       : '';
+
+    const blockedByExternal = externalReasons.length > 0;
+    const blockedByQueue = queuedBlockers.length > 0;
 
     return `<div class="plan-item" style="${blockedByExternal ? 'border-color:#3a1a1a;' : blockedByQueue ? 'border-color:#3a2e00;' : ''}">
       <div class="plan-item-header">
