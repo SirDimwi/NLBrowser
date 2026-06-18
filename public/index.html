@@ -415,6 +415,9 @@
     <h3>Research Plan</h3>
     <button class="refresh-btn" onclick="clearPlan()" style="font-size:11px;padding:3px 9px;">Clear</button>
   </div>
+  <div id="planner-totals-top" style="display:none;border-bottom:1px solid var(--border);padding:10px 16px;">
+    <div id="totals-body-top"></div>
+  </div>
   <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
     <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
     Each item represents <strong style="color:var(--text)">one level</strong> of a research. Costs for all levels are computed from the game's base cost and your current research bonuses. Use <strong style="color:var(--text)">+ Add remaining</strong> on any card to queue all remaining levels at once.<br><br>
@@ -1075,6 +1078,7 @@ function renderPlanner() {
   if (!plan.length) {
     itemsEl.innerHTML = '<div class="plan-empty">Add research items using the + button</div>';
     totalsEl.style.display = 'none';
+    document.getElementById('planner-totals-top').style.display = 'none';
     return;
   }
 
@@ -1136,15 +1140,20 @@ function renderPlanner() {
     return `${m}m`;
   };
 
-  totalsEl.style.display = '';
-  document.getElementById('totals-body').innerHTML = `
+  const totalsHtml = `
     ${totOre ? `<div class="total-row"><span style="color:var(--ore)">⛏ Ore</span><span>${fmt(totOre)}</span></div>` : ''}
     ${totSil ? `<div class="total-row"><span style="color:var(--sil)">💠 Silicates</span><span>${fmt(totSil)}</span></div>` : ''}
     ${totHyd ? `<div class="total-row"><span style="color:var(--hyd)">💧 Hydrogen</span><span>${fmt(totHyd)}</span></div>` : ''}
     ${totAly ? `<div class="total-row"><span style="color:var(--aly)">⚙ Alloys</span><span>${fmt(totAly)}</span></div>` : ''}
     <div class="total-time"><span style="color:var(--muted)">⏱ Total Time</span><span>${fmtTime(totTime)}</span></div>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px;">Costs computed across all queued levels</div>
   `;
+
+  totalsEl.style.display = '';
+  document.getElementById('totals-body').innerHTML = totalsHtml
+    + `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Costs computed across all queued levels</div>`;
+
+  document.getElementById('planner-totals-top').style.display = '';
+  document.getElementById('totals-body-top').innerHTML = totalsHtml;
 }
 
 // ── Timer ticker ──────────────────────────────────────────────────────────────
