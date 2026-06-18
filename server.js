@@ -7,42 +7,190 @@ const { createClient } = require('./client');
 
 const app = express();
 const EXPORT_PATH = path.join(__dirname, 'nexus_export.json');
-const USAGE_PATH  = path.join(__dirname, 'usage.json');
 
-// ── Usage tracking ────────────────────────────────────────────────────────────
+// ── Usage tracking (Upstash Redis) ───────────────────────────────────────────
 
-function loadUsage() {
-  try { return JSON.parse(fs.readFileSync(USAGE_PATH, 'utf8')); } catch { return {}; }
+const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+async function redisCmd(...args) {
+  if (!REDIS_URL || !REDIS_TOKEN) return null;
+  try {
+    const res = await fetch(`${REDIS_URL}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    });
+    const json = await res.json();
+    return json.result;
+  } catch { return null; }
 }
 
-function recordUsage(userId) {
+async function redisPipeline(commands) {
+  if (!REDIS_URL || !REDIS_TOKEN) return null;
+  try {
+    const res = await fetch(`${REDIS_URL}/pipeline`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(commands),
+    });
+    return await res.json();
+  } catch { return null; }
+}
+
+function dateKey(offsetDays = 0) {
+  return new Date(Date.now() - offsetDays * 86400000).toISOString().slice(0, 10);
+}
+
+const TTL = 35 * 24 * 60 * 60;
+
+async function recordUsage(userId) {
   if (!userId) return;
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const data = loadUsage();
-  if (!data[today]) data[today] = {};
-  data[today][String(userId)] = (data[today][String(userId)] || 0) + 1;
-  try { fs.writeFileSync(USAGE_PATH, JSON.stringify(data)); } catch {}
+  const d = dateKey();
+  await redisPipeline([
+    ['SADD',   `usage:${d}`, String(userId)],
+    ['EXPIRE', `usage:${d}`, TTL],
+    // first-seen for retention (NX = only set if not exists, no expiry)
+    ['SET', `user:first_seen:${userId}`, d, 'NX'],
+  ]);
 }
 
-function computeStats() {
-  const data = loadUsage();
-  const today = new Date().toISOString().slice(0, 10);
-  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+async function recordAuthFailure() {
+  const d = dateKey();
+  await redisPipeline([
+    ['INCR',   `metric:auth:fail:${d}`],
+    ['EXPIRE', `metric:auth:fail:${d}`, TTL],
+  ]);
+}
 
-  const dau = Object.keys(data[today] || {}).length;
+async function recordAuthSuccess() {
+  const d = dateKey();
+  await redisPipeline([
+    ['INCR',   `metric:auth:ok:${d}`],
+    ['EXPIRE', `metric:auth:ok:${d}`, TTL],
+  ]);
+}
 
-  const mauUsers = new Set();
-  for (const [date, users] of Object.entries(data)) {
-    if (date >= cutoff) Object.keys(users).forEach(u => mauUsers.add(u));
+// Called from /track endpoint with validated event payloads
+async function recordEvent(event, userId) {
+  const d = dateKey();
+  if (event.type === 'view') {
+    const v = ['cards','columns','table'].includes(event.view) ? event.view : null;
+    if (v) await redisCmd('INCR', `metric:view:${v}`);
+  } else if (event.type === 'planner_add') {
+    await redisPipeline([
+      ['INCR',   'metric:planner:adds'],
+      ['SADD',   `metric:planner:users:${d}`, String(userId)],
+      ['EXPIRE', `metric:planner:users:${d}`, TTL],
+    ]);
+  } else if (event.type === 'session_end') {
+    const secs = Math.min(Math.round(event.duration / 1000), 86400);
+    await redisPipeline([
+      ['INCRBYFLOAT', 'metric:session:total_secs', secs],
+      ['INCR',        'metric:session:count'],
+      ...(event.bounce ? [['INCR', `metric:bounce:${d}`], ['EXPIRE', `metric:bounce:${d}`, TTL]] : []),
+      ...(!event.bounce ? [['INCR', `metric:sessions:${d}`], ['EXPIRE', `metric:sessions:${d}`, TTL]] : []),
+    ]);
   }
+}
 
-  // Build daily series (last 30 days)
+async function computeStats() {
+  const days = Array.from({ length: 30 }, (_, i) => dateKey(i));
+  const today = days[0];
+
+  const cmds = [
+    // 0–29: DAU per day
+    ...days.map(d => ['SCARD', `usage:${d}`]),
+    // 30: MAU union
+    ['SUNION', ...days.map(d => `usage:${d}`)],
+    // 31: today's planner users
+    ['SCARD', `metric:planner:users:${today}`],
+    // 32–34: view counts
+    ['GET', 'metric:view:cards'],
+    ['GET', 'metric:view:columns'],
+    ['GET', 'metric:view:table'],
+    // 35–36: session duration totals
+    ['GET', 'metric:session:total_secs'],
+    ['GET', 'metric:session:count'],
+    // 37–38: auth success/fail today
+    ['GET', `metric:auth:ok:${today}`],
+    ['GET', `metric:auth:fail:${today}`],
+    // 39: planner adds all-time
+    ['GET', 'metric:planner:adds'],
+    // 40–42: bounce & session counts today + yesterday
+    ['GET', `metric:bounce:${today}`],
+    ['GET', `metric:sessions:${today}`],
+    // 43–45: retention lookups — get MAU user list to check first-seen
+    // (handled separately below after we have the MAU list)
+  ];
+
+  const r = await redisPipeline(cmds);
+  if (!r) return { dau: 0, mau: 0, daily: {} };
+
   const daily = {};
-  for (const [date, users] of Object.entries(data)) {
-    if (date >= cutoff) daily[date] = Object.keys(users).length;
+  days.forEach((d, i) => {
+    const count = r[i]?.result ?? 0;
+    if (count > 0) daily[d] = count;
+  });
+
+  const mauList = r[30]?.result ?? [];
+
+  // Retention: for each MAU user check first_seen date
+  let d1 = 0, d7 = 0, d30 = 0;
+  if (mauList.length > 0) {
+    const fsKeys = mauList.map(uid => ['GET', `user:first_seen:${uid}`]);
+    const todayUsers = new Set(r[0]?.result ? undefined : []); // active today
+    // Re-fetch today's active set for retention
+    const [todaySet, firstSeens] = await Promise.all([
+      redisCmd('SMEMBERS', `usage:${today}`),
+      redisPipeline(fsKeys),
+    ]);
+    const activeToday = new Set(todaySet ?? []);
+    const day1ago  = dateKey(1);
+    const day7ago  = dateKey(7);
+    const day30ago = dateKey(30);
+    mauList.forEach((uid, i) => {
+      const fs = firstSeens?.[i]?.result;
+      if (!fs || !activeToday.has(uid)) return;
+      if (fs === day1ago)  d1++;
+      if (fs <= day7ago && fs > dateKey(8))  d7++;
+      if (fs <= day30ago && fs > dateKey(31)) d30++;
+    });
   }
 
-  return { dau, mau: mauUsers.size, daily };
+  const sessionCount = parseInt(r[36]?.result ?? 0);
+  const avgSession = sessionCount > 0
+    ? Math.round(parseFloat(r[35]?.result ?? 0) / sessionCount)
+    : 0;
+
+  const bounceCount   = parseInt(r[40]?.result ?? 0);
+  const sessionsDone  = parseInt(r[41]?.result ?? 0);
+  const totalSessions = bounceCount + sessionsDone;
+  const bounceRate    = totalSessions > 0 ? Math.round(bounceCount / totalSessions * 100) : null;
+
+  return {
+    dau: daily[today] ?? 0,
+    mau: mauList.length,
+    daily,
+    views: {
+      cards:   parseInt(r[32]?.result ?? 0),
+      columns: parseInt(r[33]?.result ?? 0),
+      table:   parseInt(r[34]?.result ?? 0),
+    },
+    planner: {
+      totalAdds:   parseInt(r[39]?.result ?? 0),
+      usersToday:  r[31]?.result ?? 0,
+    },
+    session: {
+      avgDurationSecs: avgSession,
+      bounceRate,
+    },
+    auth: {
+      successToday: parseInt(r[37]?.result ?? 0),
+      failToday:    parseInt(r[38]?.result ?? 0),
+    },
+    retention: { d1, d7, d30 },
+  };
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -59,6 +207,7 @@ app.use(session({
   },
 }));
 
+app.use(express.json());
 app.use(express.static('public'));
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
@@ -118,10 +267,11 @@ app.get('/auth', async (req, res) => {
   if (!token) return res.redirect('/?error=missing_token');
 
   const payload = decodeJwt(token);
-  if (!payload) return res.redirect('/?error=invalid_token');
+  if (!payload) { recordAuthFailure(); return res.redirect('/?error=invalid_token'); }
 
   // Check expiry
   if (payload.exp && Date.now() / 1000 > payload.exp) {
+    recordAuthFailure();
     return res.redirect('/?error=token_expired');
   }
 
@@ -140,7 +290,10 @@ app.get('/auth', async (req, res) => {
     exp:         payload.exp,
   };
 
+  req.session.startTime = Date.now();
+  req.session.apiCallCount = 0;
   recordUsage(payload.userId);
+  recordAuthSuccess();
   res.redirect('/');
 });
 
@@ -166,7 +319,24 @@ app.get('/me', (req, res) => {
 });
 
 app.post('/logout', (req, res) => {
+  const userId = req.session.user?.userId;
+  const start  = req.session.startTime;
+  const calls  = req.session.apiCallCount ?? 0;
   req.session.destroy();
+  if (userId && start) {
+    recordEvent({ type: 'session_end', duration: Date.now() - start, bounce: calls <= 1 }, userId);
+  }
+  res.json({ ok: true });
+});
+
+app.post('/track', requireAuth, async (req, res) => {
+  const { type, view } = req.body ?? {};
+  const userId = req.session.user?.userId;
+  if (type === 'view' && view) {
+    await recordEvent({ type: 'view', view }, userId);
+  } else if (type === 'planner_add') {
+    await recordEvent({ type: 'planner_add' }, userId);
+  }
   res.json({ ok: true });
 });
 
@@ -206,6 +376,7 @@ app.post('/data/discover-planet', requireAuth, async (req, res) => {
 });
 
 app.get('/data/:endpoint', requireAuth, async (req, res) => {
+  req.session.apiCallCount = (req.session.apiCallCount ?? 0) + 1;
   const fn = routes[req.params.endpoint];
   if (!fn) return res.status(404).json({ error: 'Unknown endpoint' });
   try {
@@ -259,10 +430,48 @@ app.post('/export', requireAuth, async (req, res) => {
   }
 });
 
-app.get('/stats', (req, res) => {
+// ── Suggestion box ────────────────────────────────────────────────────────────
+
+const SLUR_FILTER = [
+  'nigger','nigga','faggot','fag','chink','spic','kike','wetback',
+  'tranny','retard','cunt','dyke','gook','beaner','cracker',
+].map(w => new RegExp(`\\b${w}s?\\b`, 'i'));
+
+function isFlagged(text) {
+  return SLUR_FILTER.some(re => re.test(text));
+}
+
+app.post('/suggest', requireAuth, async (req, res) => {
+  const text = (req.body?.text ?? '').trim();
+  if (!text || text.length > 500) return res.status(400).json({ error: 'Invalid suggestion' });
+
+  const entry = JSON.stringify({
+    text,
+    user: req.session.user?.username ?? 'unknown',
+    userId: req.session.user?.userId,
+    at: new Date().toISOString(),
+  });
+
+  const list = isFlagged(text) ? 'suggestions:trash' : 'suggestions:inbox';
+  await redisCmd('LPUSH', list, entry);
+  res.json({ ok: true });
+});
+
+app.get('/suggestions', async (req, res) => {
   const key = process.env.STATS_KEY;
   if (key && req.query.key !== key) return res.status(401).json({ error: 'Unauthorized' });
-  res.json(computeStats());
+  const [inbox, trash] = await Promise.all([
+    redisCmd('LRANGE', 'suggestions:inbox', 0, -1),
+    redisCmd('LRANGE', 'suggestions:trash', 0, -1),
+  ]);
+  const parse = list => (list ?? []).map(s => { try { return JSON.parse(s); } catch { return { text: s }; } });
+  res.json({ inbox: parse(inbox), trash: parse(trash) });
+});
+
+app.get('/stats', async (req, res) => {
+  const key = process.env.STATS_KEY;
+  if (key && req.query.key !== key) return res.status(401).json({ error: 'Unauthorized' });
+  res.json(await computeStats());
 });
 
 const PORT = process.env.PORT || 3000;
