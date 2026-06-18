@@ -185,6 +185,7 @@
       <span id="header-universe"></span>
     </div>
     <span class="last-updated" id="last-updated">—</span>
+    <span style="font-size:11px;color:var(--muted);opacity:.6;">v<span id="app-version"></span></span>
     <button class="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
     <button class="planner-toggle" id="planner-toggle" onclick="togglePlanner()">📋 Planner <span id="planner-count"></span></button>
     <button class="refresh-btn" onclick="logout()" style="color:var(--muted);">Log Out</button>
@@ -265,6 +266,8 @@
 </div>
 
 <script>
+const VERSION = '1.0.0';
+
 let researchData = [];
 let refreshTimer = null;
 let plan = []; // [{id, name, branch, era, category, ore, sil, hyd, aly, time, level, maxLevel}]
@@ -391,7 +394,7 @@ const statusBadge = {
 };
 
 function renderResearchCards(list) {
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,calc((100% - 32px)/3)),300px));gap:16px;">${list.map(r => {
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,240px);gap:16px;">${list.map(r => {
     const st = rStatusOf(r);
     const pct = Math.round((r.level / r.maxLevel) * 100);
     const totalCost = (r.nextCostOre||0)+(r.nextCostSilicates||0)+(r.nextCostHydrogen||0)+(r.nextCostAlloys||0);
@@ -444,7 +447,7 @@ function renderResearchColumns(list) {
           const pct = Math.round((r.level / r.maxLevel) * 100);
           const totalCost = (r.nextCostOre||0)+(r.nextCostSilicates||0)+(r.nextCostHydrogen||0)+(r.nextCostAlloys||0);
           const effects = (r.effects||[]).filter(e=>e.value).map(e=>`<span style="font-size:11px;color:var(--muted)">${e.type.replace(/_/g,' ')} ${e.value>0?'+':''}${(e.value*100).toFixed(0)}%</span>`).join(' · ');
-          return `<div class="research-item" style="margin-bottom:8px;">
+          return `<div class="research-item" style="margin-bottom:8px;max-width:240px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
               <div style="font-size:13px;font-weight:600;">${r.name}</div>
               <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
@@ -671,6 +674,7 @@ async function boot() {
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('header-username').textContent = data.user.username;
   document.getElementById('header-universe').textContent = data.user.universeKey?.toUpperCase();
+  document.getElementById('app-version').textContent = VERSION;
 
   if (err) history.replaceState({}, '', '/');
 
