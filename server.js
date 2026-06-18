@@ -10,6 +10,8 @@ const EXPORT_PATH = path.join(__dirname, 'nexus_export.json');
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
+app.set('trust proxy', 1); // required for secure cookies behind Railway's proxy
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'nexus-dev-secret-change-in-prod',
   resave: false,
