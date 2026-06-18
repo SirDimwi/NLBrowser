@@ -201,8 +201,9 @@
       <input id="r-search" type="text" placeholder="Search research…" oninput="applyResearch()"
         style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;font-size:13px;outline:none;">
       <div style="display:flex;gap:4px;">
-        <button class="refresh-btn" id="view-cards" onclick="setView('cards')" title="Card view">▦</button>
-        <button class="refresh-btn" id="view-table" onclick="setView('table')" title="Table view">☰</button>
+        <button class="refresh-btn" id="view-cards"   onclick="setView('cards')"   title="Card view">▦</button>
+        <button class="refresh-btn" id="view-columns" onclick="setView('columns')" title="Column view">⫿</button>
+        <button class="refresh-btn" id="view-table"   onclick="setView('table')"   title="Table view">☰</button>
       </div>
       <span id="r-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
     </div>
@@ -329,8 +330,9 @@ function setSort(val) {
 
 function setView(val) {
   rState.view = val;
-  document.getElementById('view-cards').style.borderColor = val==='cards' ? 'var(--accent)' : '';
-  document.getElementById('view-table').style.borderColor = val==='table' ? 'var(--accent)' : '';
+  document.getElementById('view-cards').style.borderColor   = val==='cards'   ? 'var(--accent)' : '';
+  document.getElementById('view-columns').style.borderColor = val==='columns' ? 'var(--accent)' : '';
+  document.getElementById('view-table').style.borderColor   = val==='table'   ? 'var(--accent)' : '';
   applyResearch();
 }
 
@@ -373,7 +375,9 @@ function applyResearch() {
   document.getElementById('r-count').textContent = `${list.length} item${list.length!==1?'s':''}`;
   const el = document.getElementById('research-output');
   if (!list.length) { el.innerHTML = '<div class="empty">No matching research</div>'; return; }
-  el.innerHTML = rState.view === 'table' ? renderResearchTable(list) : renderResearchCards(list);
+  if (rState.view === 'table')   el.innerHTML = renderResearchTable(list);
+  else if (rState.view === 'columns') el.innerHTML = renderResearchColumns(list);
+  else el.innerHTML = renderResearchCards(list);
   startTimers();
 }
 
@@ -420,6 +424,57 @@ function renderResearchCards(list) {
       ${effects ? `<div style="margin-top:6px;line-height:1.6;">${effects}</div>` : ''}
     </div>`;
   }).join('')}</div>`;
+}
+
+function renderResearchColumns(list) {
+  const branches = [
+    { key: 'military', label: 'Military', color: 'var(--red)' },
+    { key: 'economy',  label: 'Economy',  color: 'var(--green)' },
+    { key: 'science',  label: 'Science',  color: 'var(--accent2)' },
+  ];
+  return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;align-items:start;">
+    ${branches.map(b => {
+      const items = list.filter(r => r.branch === b.key);
+      return `<div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${b.color};padding:8px 4px 10px;border-bottom:2px solid ${b.color};margin-bottom:10px;">
+          ${b.label} <span style="font-weight:400;color:var(--muted);font-size:11px;">(${items.length})</span>
+        </div>
+        ${items.length ? items.map(r => {
+          const st = rStatusOf(r);
+          const pct = Math.round((r.level / r.maxLevel) * 100);
+          const totalCost = (r.nextCostOre||0)+(r.nextCostSilicates||0)+(r.nextCostHydrogen||0)+(r.nextCostAlloys||0);
+          const effects = (r.effects||[]).filter(e=>e.value).map(e=>`<span style="font-size:11px;color:var(--muted)">${e.type.replace(/_/g,' ')} ${e.value>0?'+':''}${(e.value*100).toFixed(0)}%</span>`).join(' · ');
+          return `<div class="research-item" style="margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+              <div style="font-size:13px;font-weight:600;">${r.name}</div>
+              <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+                ${statusBadge[st]||''}
+                <button class="plan-btn" onclick="addToPlan('${r.id}')" ${planFull(r)?'disabled':''} title="Add to plan">+</button>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">
+              Era ${r.era} · ${(r.category||'').replace(/_/g,' ')}
+            </div>
+            <div style="margin:6px 0 4px;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;">
+                <span>Lv ${r.level}/${r.maxLevel}</span><span>${pct}%</span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            </div>
+            ${st==='in_progress' ? `<div style="font-size:12px;color:var(--green);margin-top:4px;">Completes: <span class="mission-timer" data-time="${r.endsAt}">—</span></div>` : ''}
+            ${!r.isMaxed&&totalCost>0 ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;">
+              ${r.nextCostOre       ? `<span style="color:var(--ore)">⛏ ${fmt(r.nextCostOre)}</span>` : ''}
+              ${r.nextCostSilicates ? `<span style="color:var(--sil)">💠 ${fmt(r.nextCostSilicates)}</span>` : ''}
+              ${r.nextCostHydrogen  ? `<span style="color:var(--hyd)">💧 ${fmt(r.nextCostHydrogen)}</span>` : ''}
+              ${r.nextCostAlloys    ? `<span style="color:var(--aly)">⚙ ${fmt(r.nextCostAlloys)}</span>` : ''}
+              <span>⏱ ${Math.round((r.nextResearchTime||0)/60)}m</span>
+            </div>` : ''}
+            ${effects ? `<div style="margin-top:4px;line-height:1.6;">${effects}</div>` : ''}
+          </div>`;
+        }).join('') : `<div class="empty" style="padding:20px 0;">None</div>`}
+      </div>`;
+    }).join('')}
+  </div>`;
 }
 
 function renderResearchTable(list) {
@@ -476,10 +531,8 @@ function togglePlanner() {
 
 function addToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
-  if (!r) return;
-  const alreadyQueued = plan.filter(p => p.id == researchId).length;
-  const plannedLevel = r.level + alreadyQueued;
-  if (plannedLevel >= r.maxLevel) return; // all remaining levels already queued
+  if (!r || r.isMaxed) return;
+  if (plan.some(p => p.id == researchId)) return; // already in plan
   plan.push({
     uid: Date.now() + Math.random(),
     id: r.id,
@@ -487,8 +540,8 @@ function addToPlan(researchId) {
     branch: r.branch,
     era: r.era,
     category: r.category || '',
-    fromLevel: plannedLevel,
-    toLevel: plannedLevel + 1,
+    fromLevel: r.level,
+    toLevel: r.level + 1,
     maxLevel: r.maxLevel,
     ore: r.nextCostOre || 0,
     sil: r.nextCostSilicates || 0,
