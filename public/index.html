@@ -256,6 +256,7 @@
     <button class="version-btn" onclick="openPatchNotes()" title="Patch notes">v<span id="app-version"></span></button>
     <button class="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
     <button class="planner-toggle" id="planner-toggle" onclick="togglePlanner()">📋 Planner <span id="planner-count"></span></button>
+    <button class="refresh-btn" id="export-btn" onclick="exportData()" title="Export all game data as JSON">⬇ Export</button>
     <button class="refresh-btn" onclick="openSuggest()" title="Suggest a feature">💡</button>
     <button class="refresh-btn" onclick="logout()" style="color:var(--muted);">Log Out</button>
   </div>
@@ -803,6 +804,34 @@ async function boot() {
 }
 
 boot();
+
+// ── Export ────────────────────────────────────────────────────────────────────
+
+async function exportData() {
+  const btn = document.getElementById('export-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Exporting…';
+  try {
+    const res = await fetch('/export', { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json();
+      alert('Export failed: ' + (err.error || res.status));
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'nexus-export.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Export failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇ Export';
+  }
+}
 
 // ── Consent banner ───────────────────────────────────────────────────────────
 

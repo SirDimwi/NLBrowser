@@ -424,8 +424,10 @@ app.post('/export', requireAuth, async (req, res) => {
       outposts, directives, wormholes,
     };
 
-    fs.writeFileSync(EXPORT_PATH, JSON.stringify(snapshot, null, 2));
-    res.json({ ok: true, path: EXPORT_PATH, exportedAt: snapshot.exportedAt });
+    const filename = `nexus-export-${snapshot.exportedAt.slice(0, 10)}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify(snapshot, null, 2));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
