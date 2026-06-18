@@ -373,11 +373,9 @@
   </div>
   <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
     <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
-    Each item represents <strong style="color:var(--text)">one level</strong> of a research at its current next-level cost. Costs are pulled live from the game — only the immediate next level is available.<br><br>
-    <strong style="color:var(--yellow)">⚠ Limitations</strong><br>
-    · Each research can only be added once<br>
-    · Costs for levels beyond the next are unknown<br>
-    · After completing a level in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update costs
+    Each item represents <strong style="color:var(--text)">one level</strong> of a research. Costs for all levels are computed from the game's base cost and your current research bonuses. Use <strong style="color:var(--text)">+ Add remaining</strong> on any card to queue all remaining levels at once.<br><br>
+    <strong style="color:var(--yellow)">⚠ Note</strong><br>
+    · After completing a level in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update costs and progress
   </div>
   <div class="planner-items" id="planner-items">
     <div class="plan-empty">Add research items using the + button</div>
@@ -398,6 +396,39 @@ let researchData = [];
 let refreshTimer = null;
 let plan = []; // [{id, name, branch, era, category, ore, sil, hyd, aly, time, level, maxLevel}]
 let plannerOpen = false;
+
+// ── Level cost computation ────────────────────────────────────────────────────
+
+let playerMults = { cost: 1, time: 1 }; // derived from API data
+
+function derivePlayerMults(research) {
+  for (const r of research) {
+    if (r.level > 0 && r.nextCostOre > 0 && r.costOre > 0 && r.costFactor > 0) {
+      const expected = r.costOre * Math.pow(r.costFactor, r.level);
+      playerMults.cost = r.nextCostOre / expected;
+    }
+    if (r.level > 0 && r.nextResearchTime > 0 && r.researchTime > 0 && r.timeFactor > 0) {
+      const expected = r.researchTime * Math.pow(r.timeFactor, r.level);
+      playerMults.time = r.nextResearchTime / expected;
+    }
+    if (playerMults.cost !== 1 && playerMults.time !== 1) break;
+  }
+}
+
+function computeLevels(r) {
+  const levels = [];
+  for (let n = 1; n <= r.maxLevel; n++) {
+    levels.push({
+      level: n,
+      ore:  Math.round(r.costOre  * Math.pow(r.costFactor,  n - 1) * playerMults.cost),
+      sil:  Math.round(r.costSilicates * Math.pow(r.costFactor, n - 1) * playerMults.cost),
+      hyd:  Math.round(r.costHydrogen  * Math.pow(r.costFactor, n - 1) * playerMults.cost),
+      aly:  Math.round(r.costAlloys    * Math.pow(r.costFactor, n - 1) * playerMults.cost),
+      time: Math.round(r.researchTime  * Math.pow(r.timeFactor, n - 1) * playerMults.time),
+    });
+  }
+  return levels;
+}
 
 // Planet context — per-planet overlay data
 let planetContext = {
@@ -469,6 +500,7 @@ async function refreshPlanetContext() {
     ]);
 
     researchData = resData.research || [];
+    derivePlayerMults(researchData);
 
     const activeResearches = resData.activeResearches || [];
     planetContext.activeJobs = activeResearches.filter(j => j.planetId == id);
@@ -665,6 +697,32 @@ function renderResearchCards(list) {
         <span>⏱ ${Math.round((r.nextResearchTime||0)/60)}m</span>
       </div>` : ''}
       ${effects ? `<div style="margin-top:6px;line-height:1.6;">${effects}</div>` : ''}
+      ${r.maxLevel > 1 && !r.isMaxed ? (() => {
+        const levels = computeLevels(r);
+        const remaining = levels.slice(r.level);
+        const full = planFull(r);
+        return `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;">All Levels</span>
+            <button onclick="addAllToPlan('${r.id}')" ${full?'disabled':''} style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;" onmouseover="if(!this.disabled){this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)'}" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Add remaining</button>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <tr style="color:var(--muted)"><td>Lv</td><td style="color:var(--ore)">Ore</td>${levels[0].sil?'<td style="color:var(--sil)">Sil</td>':''}${levels[0].hyd?'<td style="color:var(--hyd)">Hyd</td>':''}${levels[0].aly?'<td style="color:var(--aly)">Aly</td>':''}<td>Time</td></tr>
+            ${levels.map(l => {
+              const done = l.level <= r.level;
+              const current = l.level === r.level + 1;
+              return `<tr style="${done?'opacity:.35;':''}${current?'color:var(--text);':'color:var(--muted);'}">
+                <td>${l.level}${done?' ✓':''}</td>
+                <td>${l.ore?fmt(l.ore):'—'}</td>
+                ${levels[0].sil?`<td>${l.sil?fmt(l.sil):'—'}</td>`:''}
+                ${levels[0].hyd?`<td>${l.hyd?fmt(l.hyd):'—'}</td>`:''}
+                ${levels[0].aly?`<td>${l.aly?fmt(l.aly):'—'}</td>`:''}
+                <td>${Math.round(l.time/60)}m</td>
+              </tr>`;
+            }).join('')}
+          </table>
+        </div>`;
+      })() : ''}
     </div>`;
   }).join('')}</div>`;
 }
@@ -771,6 +829,11 @@ function planFull(r) {
   return r.level + queued >= r.maxLevel;
 }
 
+function nextPlanLevel(r) {
+  const queued = plan.filter(p => p.id == r.id).length;
+  return r.level + queued + 1;
+}
+
 function togglePlanner() {
   plannerOpen = !plannerOpen;
   document.getElementById('planner-sidebar').classList.toggle('collapsed', !plannerOpen);
@@ -779,8 +842,10 @@ function togglePlanner() {
 
 function addToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
-  if (!r || r.isMaxed) return;
-  if (plan.some(p => p.id == researchId)) return; // already in plan
+  if (!r || planFull(r)) return;
+  const lvl = nextPlanLevel(r);
+  const levels = computeLevels(r);
+  const lvlData = levels[lvl - 1] || {};
   plan.push({
     uid: Date.now() + Math.random(),
     id: r.id,
@@ -788,19 +853,53 @@ function addToPlan(researchId) {
     branch: r.branch,
     era: r.era,
     category: r.category || '',
-    fromLevel: r.level,
-    toLevel: r.level + 1,
+    fromLevel: lvl - 1,
+    toLevel: lvl,
     maxLevel: r.maxLevel,
-    ore: r.nextCostOre || 0,
-    sil: r.nextCostSilicates || 0,
-    hyd: r.nextCostHydrogen || 0,
-    aly: r.nextCostAlloys || 0,
-    time: r.nextResearchTime || 0,
+    ore: lvlData.ore || 0,
+    sil: lvlData.sil || 0,
+    hyd: lvlData.hyd || 0,
+    aly: lvlData.aly || 0,
+    time: lvlData.time || 0,
   });
   if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
   if (!plannerOpen) togglePlanner();
   renderPlanner();
-  applyResearch(); // refresh + button disabled states
+  applyResearch();
+}
+
+function addAllToPlan(researchId) {
+  const r = researchData.find(r => r.id == researchId);
+  if (!r) return;
+  const levels = computeLevels(r);
+  let added = false;
+  while (!planFull(r)) {
+    const lvl = nextPlanLevel(r);
+    if (lvl > r.maxLevel) break;
+    const lvlData = levels[lvl - 1] || {};
+    plan.push({
+      uid: Date.now() + Math.random(),
+      id: r.id,
+      name: r.name,
+      branch: r.branch,
+      era: r.era,
+      category: r.category || '',
+      fromLevel: lvl - 1,
+      toLevel: lvl,
+      maxLevel: r.maxLevel,
+      ore: lvlData.ore || 0,
+      sil: lvlData.sil || 0,
+      hyd: lvlData.hyd || 0,
+      aly: lvlData.aly || 0,
+      time: lvlData.time || 0,
+    });
+    added = true;
+  }
+  if (added) {
+    if (!plannerOpen) togglePlanner();
+    renderPlanner();
+    applyResearch();
+  }
 }
 
 function removeFromPlan(uid) {
@@ -832,13 +931,12 @@ function renderPlanner() {
   itemsEl.innerHTML = plan.map(p => `
     <div class="plan-item">
       <div class="plan-item-header">
-        <div class="plan-item-name">${p.name}</div>
+        <div class="plan-item-name">${p.name} <span style="color:var(--muted);font-weight:400;font-size:11px;">Lv${p.toLevel}</span></div>
         <button class="plan-item-remove" onclick="removeFromPlan(${p.uid})">×</button>
       </div>
       <div class="plan-item-meta" style="color:${branchColor[p.branch]||'var(--muted)'}">
         Era ${p.era} · ${p.branch} · ${p.category.replace(/_/g,' ')}
       </div>
-      <div class="plan-item-meta">Level ${p.fromLevel} → ${p.toLevel} / ${p.maxLevel}</div>
       <div class="plan-item-costs">
         ${p.ore ? `<span style="color:var(--ore)">⛏ ${fmt(p.ore)}</span>` : ''}
         ${p.sil ? `<span style="color:var(--sil)">💠 ${fmt(p.sil)}</span>` : ''}
@@ -869,7 +967,7 @@ function renderPlanner() {
     ${totHyd ? `<div class="total-row"><span style="color:var(--hyd)">💧 Hydrogen</span><span>${fmt(totHyd)}</span></div>` : ''}
     ${totAly ? `<div class="total-row"><span style="color:var(--aly)">⚙ Alloys</span><span>${fmt(totAly)}</span></div>` : ''}
     <div class="total-time"><span style="color:var(--muted)">⏱ Total Time</span><span>${fmtTime(totTime)}</span></div>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px;">Costs shown for next level only</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;">Costs computed across all queued levels</div>
   `;
 }
 
