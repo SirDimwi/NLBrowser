@@ -56,13 +56,4 @@ function createClient(token, universeKey = 's0') {
   return { api, get };
 }
 
-// Dev helper: single client from .env
-function devClient() {
-  require('dotenv').config();
-  const raw = process.env.NEXUS_COOKIE || '';
-  const token = raw.replace(/^nexus_token=/, '');
-  if (!token) throw new Error('Set NEXUS_COOKIE in .env');
-  return createClient(token);
-}
-
-module.exports = { createClient, devClient };
+module.exports = { createClient };

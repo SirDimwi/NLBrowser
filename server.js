@@ -323,7 +323,6 @@ app.post('/auth/manual', async (req, res) => {
   res.json({ ok: true });
 });
 
-// Dev shortcut: auto-login from .env token (localhost only)
 app.get('/dev-login', async (req, res) => {
   if (process.env.NODE_ENV === 'production') return res.status(403).send('Forbidden');
   const raw = process.env.NEXUS_COOKIE || '';
@@ -400,17 +399,6 @@ app.post('/data/discover-planet', requireAuth, async (req, res) => {
   if (!planetId) return res.status(404).json({ error: 'Could not determine planet ID' });
   req.session.user.planetId = planetId;
   res.json({ planetId });
-});
-
-app.get('/data/research-page/:techId', requireAuth, async (req, res) => {
-  if (process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Dev only' });
-  try {
-    const html = await req.apiGet(`/research/${req.params.techId}`);
-    res.setHeader('Content-Type', 'text/plain');
-    res.send(typeof html === 'string' ? html : JSON.stringify(html));
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
 });
 
 app.get('/data/planets', requireAuth, async (req, res) => {
