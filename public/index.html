@@ -290,9 +290,16 @@
 <!-- Suggestion modal -->
 <div id="suggest-backdrop" class="modal-backdrop hidden">
   <div class="modal-box">
-    <h3>💡 Suggest a Feature</h3>
-    <p>Share an idea, request, or feedback. Keep it concise — 500 characters max.</p>
-    <textarea id="suggest-text" class="modal-textarea" placeholder="Type your suggestion here…" maxlength="600" oninput="onSuggestInput()"></textarea>
+    <h3 id="suggest-title">💡 Request a Feature</h3>
+    <div style="margin-bottom:12px;">
+      <select id="suggest-type" onchange="onSuggestTypeChange()" style="background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;width:100%;outline:none;cursor:pointer;">
+        <option value="feature">💡 Feature Request</option>
+        <option value="bug">🐛 Bug Report</option>
+        <option value="accuracy">🎯 Inaccurate Data</option>
+      </select>
+    </div>
+    <p id="suggest-hint" style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Describe the feature you'd like to see. Keep it concise — 500 characters max.</p>
+    <textarea id="suggest-text" class="modal-textarea" placeholder="Type your request here…" maxlength="600" oninput="onSuggestInput()"></textarea>
     <div class="modal-footer">
       <span class="modal-counter" id="suggest-counter">0 / 500</span>
       <div class="modal-actions">
@@ -1234,7 +1241,15 @@ document.getElementById('patch-backdrop').addEventListener('click', e => {
 // ── Suggestion box ────────────────────────────────────────────────────────────
 const SUGGEST_MAX = 500;
 
+const suggestMeta = {
+  feature:  { title: '💡 Request a Feature', hint: 'Describe the feature you\'d like to see. Keep it concise — 500 characters max.', placeholder: 'Type your request here…' },
+  bug:      { title: '🐛 Report a Bug',      hint: 'Describe what happened and how to reproduce it. Keep it concise — 500 characters max.', placeholder: 'Describe the bug here…' },
+  accuracy: { title: '🎯 Report Inaccurate Data', hint: 'Something look wrong in the app? Let us know what and where — 500 characters max.', placeholder: 'Describe the inaccuracy here…' },
+};
+
 function openSuggest() {
+  document.getElementById('suggest-type').value = 'feature';
+  onSuggestTypeChange();
   document.getElementById('suggest-text').value = '';
   document.getElementById('suggest-counter').textContent = '0 / ' + SUGGEST_MAX;
   document.getElementById('suggest-counter').className = 'modal-counter';
@@ -1242,6 +1257,14 @@ function openSuggest() {
   document.getElementById('suggest-status').className = 'modal-status';
   document.getElementById('suggest-backdrop').classList.remove('hidden');
   document.getElementById('suggest-text').focus();
+}
+
+function onSuggestTypeChange() {
+  const type = document.getElementById('suggest-type').value;
+  const meta = suggestMeta[type];
+  document.getElementById('suggest-title').textContent = meta.title;
+  document.getElementById('suggest-hint').textContent = meta.hint;
+  document.getElementById('suggest-text').placeholder = meta.placeholder;
 }
 
 function closeSuggest() {
@@ -1267,7 +1290,7 @@ async function submitSuggest() {
     const res = await fetch('/suggest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, anonymous: !hasConsent() }),
+      body: JSON.stringify({ text, type: document.getElementById('suggest-type').value, anonymous: !hasConsent() }),
     });
     const status = document.getElementById('suggest-status');
     if (res.ok) {
