@@ -64,10 +64,12 @@ async function init() {
   if (payload) {
     userInfo.style.display = 'block';
     const exp = new Date(payload.exp * 1000);
-    userInfo.innerHTML = `
-      <strong>${payload.username}</strong> · ${payload.race} · ${payload.leaderType}<br>
-      Universe: ${universe.toUpperCase()} &nbsp;|&nbsp; Expires: ${exp.toLocaleDateString()}
-    `;
+    const strong = document.createElement('strong');
+    strong.textContent = payload.username;
+    const line1 = document.createTextNode(` · ${payload.race} · ${payload.leaderType}`);
+    const br = document.createElement('br');
+    const line2 = document.createTextNode(`Universe: ${universe.toUpperCase()} | Expires: ${exp.toLocaleDateString()}`);
+    userInfo.replaceChildren(strong, line1, br, line2);
   }
 
   openBtn.disabled = false;
