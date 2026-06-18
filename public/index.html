@@ -672,9 +672,10 @@ async function refreshPlanetContext() {
     const activeResearches = resData.activeResearches || [];
     planetContext.activeJobs = activeResearches.filter(j => j.planetId == id);
 
-    const buildings = planetData.planet?.buildings || planetData.buildings || {};
-    const lab = buildings.research_lab || buildings['research_lab'] || {};
-    planetContext.labLevel = lab.level || 0;
+    const rawBuildings = Array.isArray(planetData.buildings) ? planetData.buildings
+                       : Array.isArray(planetData.planet?.buildings) ? planetData.planet.buildings : [];
+    const labBuilding = rawBuildings.find(b => b.definition?.key === 'research_lab');
+    planetContext.labLevel = labBuilding?.level || 0;
 
     const p = planetData.planet?.planet || planetData.planet || planetData;
     planetContext.resources = {
@@ -700,13 +701,35 @@ async function refreshPlanetContext() {
     planetContext.population    = p.population    ?? null;
     planetContext.maxPopulation = p.maxPopulation ?? null;
 
-    const rawBuildings = planetData.planet?.buildings || planetData.buildings || {};
     const buildingsMap = {};
-    for (const [key, val] of Object.entries(rawBuildings)) {
-      buildingsMap[key] = { ...val, key };
+    for (const b of rawBuildings) {
+      const def = b.definition || {};
+      const key = def.key || String(b.id);
+      buildingsMap[key] = {
+        key,
+        instanceId: b.id,
+        level: b.level || 0,
+        isUpgrading: b.isUpgrading || false,
+        upgradeEndsAt: b.upgradeEndsAt || null,
+        name: def.name || key,
+        description: def.description || '',
+        category: def.category || '',
+        maxLevel: def.maxLevel || 0,
+        baseCostOre: def.baseCostOre || 0,
+        baseCostSilicates: def.baseCostSilicates || 0,
+        baseCostHydrogen: def.baseCostHydrogen || 0,
+        baseCostAlloys: def.baseCostAlloys || 0,
+        costFactor: def.costFactor || 1,
+        alloysFromLevel: def.alloysFromLevel ?? 1,
+        baseBuildTime: def.baseBuildTime || 0,
+        buildTimeFactor: def.buildTimeFactor || 1,
+        requirements: def.requirements || [],
+        requirementsMet: def.requirementsMet !== false,
+        disabledReason: def.disabledReason || null,
+      };
     }
     planetContext.buildings = buildingsMap;
-    planetContext.buildSpeedMult = p.buildSpeedMult ?? 1;
+    planetContext.buildSpeedMult = planetData.buildSpeedMult ?? 1;
 
     renderResourceBar();
     if (activeMainTab === 'buildings') applyBuildings();
@@ -1362,22 +1385,24 @@ function setBuildingSort(s) {
 const BCAT_COLORS = { resource: 'var(--ore)', energy: 'var(--yellow)', military: 'var(--red)', defense: 'var(--purple)', utility: 'var(--accent2)' };
 
 function bStatusOf(b) {
-  if (b.upgrading) return 'upgrading';
-  if (b.isMaxed || (b.maxLevel > 0 && b.level >= b.maxLevel)) return 'maxed';
+  if (b.isUpgrading) return 'upgrading';
+  if (b.maxLevel > 0 && b.level >= b.maxLevel) return 'maxed';
   if (b.level > 0) return 'built';
-  if (b.requirementsMet === false) return 'locked';
+  if (!b.requirementsMet) return 'locked';
   if (b.disabledReason) return 'disabled';
   return 'available';
 }
 
 function bNextLevelCost(b, lvl) {
   const n = lvl;
-  const ore  = Math.round((b.costOre  || 0) * Math.pow(b.costFactor || 1, n - 1));
-  const sil  = Math.round((b.costSilicates || 0) * Math.pow(b.costFactor || 1, n - 1));
-  const hyd  = Math.round((b.costHydrogen  || 0) * Math.pow(b.costFactor || 1, n - 1));
-  const aly  = b.alloysFromLevel && n >= b.alloysFromLevel
-               ? Math.round((b.costAlloys || 0) * Math.pow(b.costFactor || 1, n - b.alloysFromLevel))
-               : 0;
+  const f = b.costFactor || 1;
+  const ore = Math.round((b.baseCostOre || 0) * Math.pow(f, n - 1));
+  const sil = Math.round((b.baseCostSilicates || 0) * Math.pow(f, n - 1));
+  const hyd = Math.round((b.baseCostHydrogen  || 0) * Math.pow(f, n - 1));
+  const alyStart = b.alloysFromLevel ?? 1;
+  const aly = n >= alyStart
+              ? Math.round((b.baseCostAlloys || 0) * Math.pow(f, n - alyStart))
+              : 0;
   const time = Math.round((b.baseBuildTime || 0) * Math.pow(b.buildTimeFactor || 1, n - 1) * (planetContext.buildSpeedMult || 1));
   return { ore, sil, hyd, aly, time };
 }
