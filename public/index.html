@@ -139,6 +139,20 @@
   .planner-toggle:hover { border-color: var(--accent); color: var(--accent); }
   .planner-toggle.active { border-color: var(--accent2); color: var(--accent2); }
 
+  /* Main tab nav */
+  #main-tabs { background:var(--panel); border-bottom:1px solid var(--border); padding:0 24px; display:flex; gap:0; }
+  .main-tab { background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:12px 18px; font-size:13px; font-weight:600; cursor:pointer; letter-spacing:.3px; transition:all .15s; }
+  .main-tab:hover { color:var(--text); }
+  .main-tab.active { color:var(--accent2); border-bottom-color:var(--accent2); }
+
+  /* Planner tabs */
+  .planner-tabs { display:flex; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .planner-tab { flex:1; background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:10px 6px; font-size:11px; font-weight:600; cursor:pointer; text-transform:uppercase; letter-spacing:.4px; transition:all .15s; }
+  .planner-tab:hover { color:var(--text); }
+  .planner-tab.active { color:var(--accent2); border-bottom-color:var(--accent2); }
+  .planner-panel { display:none; flex:1; flex-direction:column; overflow:hidden; }
+  .planner-panel.active { display:flex; }
+
   /* Suggestion modal */
   .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; display:flex; align-items:center; justify-content:center; }
   .modal-backdrop.hidden { display:none; }
@@ -356,7 +370,55 @@
   </div>
 </div>
 
+<div id="main-tabs">
+  <button class="main-tab active" id="tab-research" onclick="setMainTab('research')">⚗ Research</button>
+  <button class="main-tab" id="tab-buildings" onclick="setMainTab('buildings')">🏗 Buildings</button>
+</div>
+
 <div id="app-body">
+<div id="buildings-main" style="display:none;flex:1;min-width:0;padding:20px 24px;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <input id="b-search" type="text" placeholder="Search buildings…" oninput="applyBuildings()"
+        style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;font-size:13px;outline:none;">
+      <div style="display:flex;gap:4px;">
+        <button class="refresh-btn" id="b-view-cards" onclick="setBuildingView('cards')" title="Card view">▦</button>
+        <button class="refresh-btn" id="b-view-table" onclick="setBuildingView('table')" title="Table view">☰</button>
+      </div>
+      <span id="b-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Category</span>
+      <button class="r-filter-btn active" data-group="bcat" data-val="all"      onclick="toggleBuildingCat('all')">All</button>
+      <button class="r-filter-btn" data-group="bcat" data-val="resource"  onclick="toggleBuildingCat('resource')"  style="--fc:var(--ore)">Resource</button>
+      <button class="r-filter-btn" data-group="bcat" data-val="energy"    onclick="toggleBuildingCat('energy')"    style="--fc:var(--yellow)">Energy</button>
+      <button class="r-filter-btn" data-group="bcat" data-val="military"  onclick="toggleBuildingCat('military')"  style="--fc:var(--red)">Military</button>
+      <button class="r-filter-btn" data-group="bcat" data-val="defense"   onclick="toggleBuildingCat('defense')"   style="--fc:var(--purple)">Defense</button>
+      <button class="r-filter-btn" data-group="bcat" data-val="utility"   onclick="toggleBuildingCat('utility')"   style="--fc:var(--accent2)">Utility</button>
+      <span style="width:1px;background:var(--border);height:20px;margin:0 6px;"></span>
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Status</span>
+      <button class="r-filter-btn active" data-group="bst" data-val="all"        onclick="toggleBuildingStatus('all')">All</button>
+      <button class="r-filter-btn" data-group="bst" data-val="upgrading"  onclick="toggleBuildingStatus('upgrading')"  style="--fc:var(--green)">Upgrading</button>
+      <button class="r-filter-btn" data-group="bst" data-val="built"      onclick="toggleBuildingStatus('built')"      style="--fc:var(--accent)">Built</button>
+      <button class="r-filter-btn" data-group="bst" data-val="available"  onclick="toggleBuildingStatus('available')"  style="--fc:var(--yellow)">Available</button>
+      <button class="r-filter-btn" data-group="bst" data-val="locked"     onclick="toggleBuildingStatus('locked')"     style="--fc:var(--muted)">Locked</button>
+      <button class="r-filter-btn" data-group="bst" data-val="maxed"      onclick="toggleBuildingStatus('maxed')"      style="--fc:var(--purple)">Maxed</button>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Sort</span>
+      <button class="r-sort-btn active" data-bsort="default"    onclick="setBuildingSort('default')">Default</button>
+      <button class="r-sort-btn" data-bsort="name"       onclick="setBuildingSort('name')">Name</button>
+      <button class="r-sort-btn" data-bsort="level"      onclick="setBuildingSort('level')">Level</button>
+      <button class="r-sort-btn" data-bsort="progress"   onclick="setBuildingSort('progress')">Progress %</button>
+      <button class="r-sort-btn" data-bsort="cost-ore"   onclick="setBuildingSort('cost-ore')">Cost: Ore</button>
+      <button class="r-sort-btn" data-bsort="cost-total" onclick="setBuildingSort('cost-total')">Cost: Total</button>
+      <button class="r-sort-btn" data-bsort="time"       onclick="setBuildingSort('time')">Time</button>
+      <button class="r-sort-btn" data-bsort="category"   onclick="setBuildingSort('category')">Category</button>
+    </div>
+  </div>
+  <div id="buildings-output"><div class="loading"><div class="spinner"></div></div></div>
+</div>
+
 <div id="research-main">
   <!-- Controls bar -->
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
@@ -412,24 +474,66 @@
 <!-- Planner sidebar -->
 <div id="planner-sidebar" class="collapsed">
   <div class="planner-header">
-    <h3>Research Plan</h3>
-    <button class="refresh-btn" onclick="clearPlan()" style="font-size:11px;padding:3px 9px;">Clear</button>
+    <h3 id="planner-header-title">Plan</h3>
+    <button class="refresh-btn" id="planner-clear-btn" onclick="clearActivePlan()" style="font-size:11px;padding:3px 9px;">Clear</button>
   </div>
-  <div id="planner-totals-top" style="display:none;border-bottom:1px solid var(--border);padding:10px 16px;">
-    <div id="totals-body-top"></div>
+
+  <!-- Planner tabs -->
+  <div class="planner-tabs">
+    <button class="planner-tab active" id="ptab-research"  onclick="setPlannerTab('research')">Research</button>
+    <button class="planner-tab"        id="ptab-buildings" onclick="setPlannerTab('buildings')">Buildings</button>
+    <button class="planner-tab"        id="ptab-combined"  onclick="setPlannerTab('combined')">Combined</button>
   </div>
-  <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
-    <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
-    Each item represents <strong style="color:var(--text)">one level</strong> of a research. Costs for all levels are computed from the game's base cost and your current research bonuses. Use <strong style="color:var(--text)">+ Add remaining</strong> on any card to queue all remaining levels at once.<br><br>
-    <strong style="color:var(--yellow)">⚠ Note</strong><br>
-    · After completing a level in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update costs and progress
+
+  <!-- Research panel -->
+  <div class="planner-panel active" id="ppanel-research">
+    <div id="planner-totals-top" style="display:none;border-bottom:1px solid var(--border);padding:10px 16px;">
+      <div id="totals-body-top"></div>
+    </div>
+    <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
+      <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
+      Each item represents <strong style="color:var(--text)">one level</strong> of a research. Costs are computed from the game's base cost and your current bonuses. Use <strong style="color:var(--text)">+ Add remaining</strong> to queue all remaining levels at once.<br><br>
+      <strong style="color:var(--yellow)">⚠ Note</strong><br>
+      · After completing a level in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update costs
+    </div>
+    <div class="planner-items" id="planner-items">
+      <div class="plan-empty">Add research items using the + button</div>
+    </div>
+    <div class="planner-totals" id="planner-totals" style="display:none;">
+      <h4>Total Cost</h4>
+      <div id="totals-body"></div>
+    </div>
   </div>
-  <div class="planner-items" id="planner-items">
-    <div class="plan-empty">Add research items using the + button</div>
+
+  <!-- Buildings panel -->
+  <div class="planner-panel" id="ppanel-buildings">
+    <div id="build-planner-totals-top" style="display:none;border-bottom:1px solid var(--border);padding:10px 16px;">
+      <div id="build-totals-body-top"></div>
+    </div>
+    <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
+      <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
+      Each item represents <strong style="color:var(--text)">one upgrade</strong> of a building. Costs are computed from the game's formula using your current level.<br><br>
+      <strong style="color:var(--yellow)">⚠ Note</strong><br>
+      · After upgrading in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update progress
+    </div>
+    <div class="planner-items" id="build-planner-items">
+      <div class="plan-empty">Add buildings using the + button</div>
+    </div>
+    <div class="planner-totals" id="build-planner-totals" style="display:none;">
+      <h4>Total Cost</h4>
+      <div id="build-totals-body"></div>
+    </div>
   </div>
-  <div class="planner-totals" id="planner-totals" style="display:none;">
-    <h4>Total Cost</h4>
-    <div id="totals-body"></div>
+
+  <!-- Combined panel -->
+  <div class="planner-panel" id="ppanel-combined">
+    <div class="planner-items" id="combined-planner-items">
+      <div class="plan-empty">Add items to Research or Buildings plans</div>
+    </div>
+    <div class="planner-totals" id="combined-planner-totals" style="display:none;">
+      <h4>Combined Total Cost</h4>
+      <div id="combined-totals-body"></div>
+    </div>
   </div>
 </div>
 
@@ -497,6 +601,8 @@ let planetContext = {
   population: null,
   maxPopulation: null,
   activeJobs: [],
+  buildings: {},
+  buildSpeedMult: 1,
 };
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -593,7 +699,17 @@ async function refreshPlanetContext() {
     };
     planetContext.population    = p.population    ?? null;
     planetContext.maxPopulation = p.maxPopulation ?? null;
+
+    const rawBuildings = planetData.planet?.buildings || planetData.buildings || {};
+    const buildingsMap = {};
+    for (const [key, val] of Object.entries(rawBuildings)) {
+      buildingsMap[key] = { ...val, key };
+    }
+    planetContext.buildings = buildingsMap;
+    planetContext.buildSpeedMult = p.buildSpeedMult ?? 1;
+
     renderResourceBar();
+    if (activeMainTab === 'buildings') applyBuildings();
   } catch(e) {}
 }
 
@@ -1081,7 +1197,8 @@ function clearPlan() {
 function renderPlanner() {
   // Update header count badge
   const countEl = document.getElementById('planner-count');
-  countEl.textContent = plan.length ? `(${plan.length})` : '';
+  const totalItems = plan.length + buildPlan.length;
+  countEl.textContent = totalItems ? `(${totalItems})` : '';
 
   const itemsEl = document.getElementById('planner-items');
   const totalsEl = document.getElementById('planner-totals');
@@ -1169,6 +1286,407 @@ function renderPlanner() {
   document.getElementById('totals-body-top').innerHTML = totalsHtml;
 
   savePlan();
+}
+
+// ── Buildings page ────────────────────────────────────────────────────────────
+
+let buildPlan = [];
+let activeMainTab = 'research';
+let activePlannerTab = 'research';
+let buildingView = 'cards';
+let buildingCatFilter = 'all';
+let buildingStatusFilter = 'all';
+let buildingSort = 'default';
+let buildingSearch = '';
+
+function saveBuildPlan() {
+  try { localStorage.setItem('nlb_build_plan', JSON.stringify(buildPlan)); } catch(e) {}
+}
+
+function loadBuildPlan() {
+  try {
+    const raw = localStorage.getItem('nlb_build_plan');
+    if (raw) buildPlan = JSON.parse(raw);
+  } catch(e) { buildPlan = []; }
+}
+
+function setMainTab(tab) {
+  activeMainTab = tab;
+  document.getElementById('research-main').style.display  = tab === 'research'  ? '' : 'none';
+  document.getElementById('buildings-main').style.display = tab === 'buildings' ? 'flex' : 'none';
+  document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'buildings' && planetContext.planetId) applyBuildings();
+}
+
+function setPlannerTab(tab) {
+  activePlannerTab = tab;
+  document.querySelectorAll('.planner-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('ptab-' + tab).classList.add('active');
+  document.querySelectorAll('.planner-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('ppanel-' + tab).classList.add('active');
+  document.getElementById('planner-clear-btn').style.display = tab === 'combined' ? 'none' : '';
+  renderPlannerCombined();
+}
+
+function clearActivePlan() {
+  if (activePlannerTab === 'research') clearPlan();
+  else if (activePlannerTab === 'buildings') clearBuildPlan();
+}
+
+function setBuildingView(v) {
+  buildingView = v;
+  document.getElementById('b-view-cards').classList.toggle('active', v === 'cards');
+  document.getElementById('b-view-table').classList.toggle('active', v === 'table');
+  applyBuildings();
+}
+
+function toggleBuildingCat(val) {
+  buildingCatFilter = val;
+  document.querySelectorAll('[data-group="bcat"]').forEach(b => b.classList.toggle('active', b.dataset.val === val));
+  applyBuildings();
+}
+
+function toggleBuildingStatus(val) {
+  buildingStatusFilter = val;
+  document.querySelectorAll('[data-group="bst"]').forEach(b => b.classList.toggle('active', b.dataset.val === val));
+  applyBuildings();
+}
+
+function setBuildingSort(s) {
+  buildingSort = s;
+  document.querySelectorAll('[data-bsort]').forEach(b => b.classList.toggle('active', b.dataset.bsort === s));
+  applyBuildings();
+}
+
+const BCAT_COLORS = { resource: 'var(--ore)', energy: 'var(--yellow)', military: 'var(--red)', defense: 'var(--purple)', utility: 'var(--accent2)' };
+
+function bStatusOf(b) {
+  if (b.upgrading) return 'upgrading';
+  if (b.isMaxed || (b.maxLevel > 0 && b.level >= b.maxLevel)) return 'maxed';
+  if (b.level > 0) return 'built';
+  if (b.requirementsMet === false) return 'locked';
+  if (b.disabledReason) return 'disabled';
+  return 'available';
+}
+
+function bNextLevelCost(b, lvl) {
+  const n = lvl;
+  const ore  = Math.round((b.costOre  || 0) * Math.pow(b.costFactor || 1, n - 1));
+  const sil  = Math.round((b.costSilicates || 0) * Math.pow(b.costFactor || 1, n - 1));
+  const hyd  = Math.round((b.costHydrogen  || 0) * Math.pow(b.costFactor || 1, n - 1));
+  const aly  = b.alloysFromLevel && n >= b.alloysFromLevel
+               ? Math.round((b.costAlloys || 0) * Math.pow(b.costFactor || 1, n - b.alloysFromLevel))
+               : 0;
+  const time = Math.round((b.baseBuildTime || 0) * Math.pow(b.buildTimeFactor || 1, n - 1) * (planetContext.buildSpeedMult || 1));
+  return { ore, sil, hyd, aly, time };
+}
+
+function bNextPlanLevel(b) {
+  const queued = buildPlan.filter(p => p.key === b.key).length;
+  return b.level + queued + 1;
+}
+
+function makeBuildPlanItem(b, lvl) {
+  const cost = bNextLevelCost(b, lvl);
+  return {
+    uid: Date.now() + Math.random(),
+    key: b.key, name: b.name || b.key, category: b.category || '',
+    fromLevel: lvl - 1, toLevel: lvl, maxLevel: b.maxLevel || 0,
+    disabledReason: b.disabledReason || null,
+    requirementsMet: b.requirementsMet !== false,
+    ...cost,
+  };
+}
+
+function addToBuildPlan(key) {
+  const b = (planetContext.buildings || {})[key];
+  if (!b) return;
+  const lvl = bNextPlanLevel(b);
+  if (b.maxLevel > 0 && lvl > b.maxLevel) return;
+  buildPlan.push(makeBuildPlanItem(b, lvl));
+  if (!plannerOpen) togglePlanner();
+  setPlannerTab('buildings');
+  renderBuildPlanner();
+  applyBuildings();
+}
+
+function addAllToBuildPlan(key) {
+  const b = (planetContext.buildings || {})[key];
+  if (!b || !b.maxLevel) return;
+  let added = 0;
+  while (true) {
+    const lvl = bNextPlanLevel(b);
+    if (lvl > b.maxLevel) break;
+    buildPlan.push(makeBuildPlanItem(b, lvl));
+    added++;
+  }
+  if (added) {
+    if (!plannerOpen) togglePlanner();
+    setPlannerTab('buildings');
+    renderBuildPlanner();
+    applyBuildings();
+  }
+}
+
+function removeFromBuildPlan(uid) {
+  buildPlan = buildPlan.filter(p => p.uid !== uid);
+  renderBuildPlanner();
+  applyBuildings();
+}
+
+function clearBuildPlan() {
+  buildPlan = [];
+  renderBuildPlanner();
+  applyBuildings();
+}
+
+function applyBuildings() {
+  const allBuildings = planetContext.buildings || {};
+  let list = Object.values(allBuildings);
+  buildingSearch = document.getElementById('b-search')?.value.toLowerCase() || '';
+
+  if (buildingSearch) list = list.filter(b => (b.name || b.key).toLowerCase().includes(buildingSearch));
+  if (buildingCatFilter !== 'all') list = list.filter(b => b.category === buildingCatFilter);
+  if (buildingStatusFilter !== 'all') list = list.filter(b => bStatusOf(b) === buildingStatusFilter);
+
+  const fmtTime = (s) => {
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  const statusOrder = { upgrading:0, built:1, available:2, locked:3, disabled:4, maxed:5 };
+
+  if (buildingSort === 'name')      list.sort((a,b) => (a.name||a.key).localeCompare(b.name||b.key));
+  else if (buildingSort === 'level') list.sort((a,b) => (b.level||0) - (a.level||0));
+  else if (buildingSort === 'progress') list.sort((a,b) => {
+    const ap = b.maxLevel ? (a.level||0)/b.maxLevel : 0;
+    const bp = b.maxLevel ? (b.level||0)/b.maxLevel : 0;
+    return bp - ap;
+  });
+  else if (buildingSort === 'cost-ore') list.sort((a,b) => {
+    const an = bNextLevelCost(a, (a.level||0)+1).ore;
+    const bn = bNextLevelCost(b, (b.level||0)+1).ore;
+    return bn - an;
+  });
+  else if (buildingSort === 'cost-total') list.sort((a,b) => {
+    const ac = bNextLevelCost(a, (a.level||0)+1);
+    const bc = bNextLevelCost(b, (b.level||0)+1);
+    return (bc.ore+bc.sil+bc.hyd+bc.aly) - (ac.ore+ac.sil+ac.hyd+ac.aly);
+  });
+  else if (buildingSort === 'time') list.sort((a,b) => {
+    const at = bNextLevelCost(a, (a.level||0)+1).time;
+    const bt = bNextLevelCost(b, (b.level||0)+1).time;
+    return bt - at;
+  });
+  else if (buildingSort === 'category') list.sort((a,b) => (a.category||'').localeCompare(b.category||''));
+  else list.sort((a,b) => (statusOrder[bStatusOf(a)]||9) - (statusOrder[bStatusOf(b)]||9));
+
+  document.getElementById('b-count').textContent = `${list.length} building${list.length !== 1 ? 's' : ''}`;
+
+  const out = document.getElementById('buildings-output');
+  if (!list.length) { out.innerHTML = '<div class="plan-empty" style="padding:32px;text-align:center;">No buildings match the current filters</div>'; return; }
+
+  if (buildingView === 'table') {
+    out.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="border-bottom:2px solid var(--border);color:var(--muted);text-align:left;">
+        <th style="padding:8px 10px;">Building</th>
+        <th style="padding:8px 10px;">Cat</th>
+        <th style="padding:8px 10px;text-align:center;">Level</th>
+        <th style="padding:8px 10px;text-align:right;">⛏ Ore</th>
+        <th style="padding:8px 10px;text-align:right;">💠 Sil</th>
+        <th style="padding:8px 10px;text-align:right;">💧 Hyd</th>
+        <th style="padding:8px 10px;text-align:right;">⚙ Aly</th>
+        <th style="padding:8px 10px;text-align:right;">⏱ Time</th>
+        <th style="padding:8px 6px;"></th>
+      </tr></thead>
+      <tbody>
+      ${list.map(b => {
+        const st = bStatusOf(b);
+        const nextLvl = (b.level||0) + 1;
+        const c = st !== 'maxed' ? bNextLevelCost(b, nextLvl) : {};
+        const stColor = {upgrading:'var(--green)',maxed:'var(--purple)',built:'var(--accent)',available:'var(--yellow)',locked:'var(--muted)',disabled:'var(--red)'}[st]||'var(--muted)';
+        const canAdd = st !== 'maxed';
+        return `<tr style="border-bottom:1px solid var(--border);">
+          <td style="padding:8px 10px;font-weight:500;">${b.name||b.key}<br><span style="font-size:10px;color:${stColor};">${st}</span></td>
+          <td style="padding:8px 10px;color:${BCAT_COLORS[b.category]||'var(--muted)'};">${b.category||'—'}</td>
+          <td style="padding:8px 10px;text-align:center;">${b.level||0}${b.maxLevel?' / '+b.maxLevel:''}</td>
+          <td style="padding:8px 10px;text-align:right;color:var(--ore);">${c.ore ? fmt(c.ore) : '—'}</td>
+          <td style="padding:8px 10px;text-align:right;color:var(--sil);">${c.sil ? fmt(c.sil) : '—'}</td>
+          <td style="padding:8px 10px;text-align:right;color:var(--hyd);">${c.hyd ? fmt(c.hyd) : '—'}</td>
+          <td style="padding:8px 10px;text-align:right;color:var(--aly);">${c.aly ? fmt(c.aly) : '—'}</td>
+          <td style="padding:8px 10px;text-align:right;color:var(--muted);">${c.time ? fmtTime(c.time) : '—'}</td>
+          <td style="padding:8px 6px;">${canAdd ? `<button class="refresh-btn" onclick="addToBuildPlan('${b.key}')" style="font-size:11px;padding:2px 7px;">+</button>` : ''}</td>
+        </tr>`;
+      }).join('')}
+      </tbody></table></div>`;
+  } else {
+    out.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+      ${list.map(b => {
+        const st = bStatusOf(b);
+        const nextLvl = (b.level||0) + 1;
+        const c = bNextLevelCost(b, nextLvl);
+        const stColor = {upgrading:'var(--green)',maxed:'var(--purple)',built:'var(--accent)',available:'var(--yellow)',locked:'var(--muted)',disabled:'var(--red)'}[st]||'var(--muted)';
+        const catColor = BCAT_COLORS[b.category] || 'var(--muted)';
+        const progressPct = b.maxLevel ? Math.round(((b.level||0) / b.maxLevel) * 100) : 0;
+        const canAdd = st !== 'maxed';
+        const canAddAll = canAdd && b.maxLevel && (b.level||0) < b.maxLevel - 1;
+        return `<div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:flex-start;gap:8px;">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${b.name||b.key}</div>
+              <div style="font-size:11px;color:${catColor};text-transform:capitalize;">${b.category||''} · <span style="color:${stColor};">${st}</span></div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:18px;font-weight:700;color:var(--accent2);">${b.level||0}</div>
+              ${b.maxLevel ? `<div style="font-size:10px;color:var(--muted);">/ ${b.maxLevel}</div>` : ''}
+            </div>
+          </div>
+          ${b.maxLevel ? `<div style="height:4px;background:var(--panel2);border-radius:2px;overflow:hidden;">
+            <div style="width:${progressPct}%;height:100%;background:${stColor};border-radius:2px;"></div>
+          </div>` : ''}
+          ${st === 'upgrading' ? `<div style="font-size:11px;color:var(--green);">⚙ Upgrading…</div>` : ''}
+          ${b.disabledReason ? `<div style="font-size:11px;color:var(--red);">⛔ ${b.disabledReason}</div>` : ''}
+          ${st !== 'maxed' ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Next level (Lv${nextLvl})</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px;">
+            ${c.ore  ? `<span style="color:var(--ore)">⛏ ${fmt(c.ore)}</span>`  : ''}
+            ${c.sil  ? `<span style="color:var(--sil)">💠 ${fmt(c.sil)}</span>`  : ''}
+            ${c.hyd  ? `<span style="color:var(--hyd)">💧 ${fmt(c.hyd)}</span>`  : ''}
+            ${c.aly  ? `<span style="color:var(--aly)">⚙ ${fmt(c.aly)}</span>`  : ''}
+            ${c.time ? `<span style="color:var(--muted)">⏱ ${fmtTime(c.time)}</span>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;margin-top:4px;">
+            <button class="refresh-btn" onclick="addToBuildPlan('${b.key}')" style="font-size:11px;padding:4px 10px;">+ Add next level</button>
+            ${canAddAll ? `<button class="refresh-btn" onclick="addAllToBuildPlan('${b.key}')" style="font-size:11px;padding:4px 10px;">+ Add remaining</button>` : ''}
+          </div>` : `<div style="font-size:11px;color:var(--purple);text-align:center;">Max level reached</div>`}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+}
+
+function renderBuildPlanner() {
+  const countEl = document.getElementById('planner-count');
+  const totalItems = plan.length + buildPlan.length;
+  countEl.textContent = totalItems ? `(${totalItems})` : '';
+
+  const itemsEl = document.getElementById('build-planner-items');
+  const totalsEl = document.getElementById('build-planner-totals');
+
+  if (!buildPlan.length) {
+    itemsEl.innerHTML = '<div class="plan-empty">Add buildings using the + button</div>';
+    totalsEl.style.display = 'none';
+    document.getElementById('build-planner-totals-top').style.display = 'none';
+    saveBuildPlan();
+    renderPlannerCombined();
+    return;
+  }
+
+  const fmtTime = (s) => {
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  itemsEl.innerHTML = buildPlan.map(p => {
+    const blocked = !p.requirementsMet;
+    return `<div class="plan-item" style="${blocked ? 'border-color:#3a1a1a;' : ''}">
+      <div class="plan-item-header">
+        <div class="plan-item-name">${p.name} <span style="color:var(--muted);font-weight:400;font-size:11px;">Lv${p.toLevel}</span></div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${blocked ? `<span style="font-size:10px;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:1px 5px;">⛔ Locked</span>` : ''}
+          <button class="plan-item-remove" onclick="removeFromBuildPlan(${p.uid})">×</button>
+        </div>
+      </div>
+      <div class="plan-item-meta" style="color:${BCAT_COLORS[p.category]||'var(--muted)'}">
+        ${p.category ? p.category.charAt(0).toUpperCase() + p.category.slice(1) : ''}
+      </div>
+      <div class="plan-item-costs">
+        ${p.ore  ? `<span style="color:var(--ore)">⛏ ${fmt(p.ore)}</span>`  : ''}
+        ${p.sil  ? `<span style="color:var(--sil)">💠 ${fmt(p.sil)}</span>`  : ''}
+        ${p.hyd  ? `<span style="color:var(--hyd)">💧 ${fmt(p.hyd)}</span>`  : ''}
+        ${p.aly  ? `<span style="color:var(--aly)">⚙ ${fmt(p.aly)}</span>`  : ''}
+        ${p.time ? `<span style="color:var(--muted)">⏱ ${fmtTime(p.time)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  const totOre = buildPlan.reduce((s,p) => s + (p.ore||0), 0);
+  const totSil = buildPlan.reduce((s,p) => s + (p.sil||0), 0);
+  const totHyd = buildPlan.reduce((s,p) => s + (p.hyd||0), 0);
+  const totAly = buildPlan.reduce((s,p) => s + (p.aly||0), 0);
+  const totTime = buildPlan.reduce((s,p) => s + (p.time||0), 0);
+
+  const totalsHtml = `
+    ${totOre ? `<div class="total-row"><span style="color:var(--ore)">⛏ Ore</span><span>${fmt(totOre)}</span></div>` : ''}
+    ${totSil ? `<div class="total-row"><span style="color:var(--sil)">💠 Silicates</span><span>${fmt(totSil)}</span></div>` : ''}
+    ${totHyd ? `<div class="total-row"><span style="color:var(--hyd)">💧 Hydrogen</span><span>${fmt(totHyd)}</span></div>` : ''}
+    ${totAly ? `<div class="total-row"><span style="color:var(--aly)">⚙ Alloys</span><span>${fmt(totAly)}</span></div>` : ''}
+    <div class="total-time"><span style="color:var(--muted)">⏱ Total Time</span><span>${fmtTime(totTime)}</span></div>
+  `;
+
+  totalsEl.style.display = '';
+  document.getElementById('build-totals-body').innerHTML = totalsHtml
+    + `<div style="font-size:11px;color:var(--muted);margin-top:8px;">Costs computed across all queued levels</div>`;
+  document.getElementById('build-planner-totals-top').style.display = '';
+  document.getElementById('build-totals-body-top').innerHTML = totalsHtml;
+
+  saveBuildPlan();
+  renderPlannerCombined();
+}
+
+function renderPlannerCombined() {
+  const allItems = [
+    ...plan.map(p => ({ ...p, _type: 'research' })),
+    ...buildPlan.map(p => ({ ...p, _type: 'building' })),
+  ];
+  const itemsEl = document.getElementById('combined-planner-items');
+  const totalsEl = document.getElementById('combined-planner-totals');
+  if (!allItems.length) {
+    itemsEl.innerHTML = '<div class="plan-empty">Add items to Research or Buildings plans</div>';
+    totalsEl.style.display = 'none';
+    return;
+  }
+  const fmtTime = (s) => {
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+  itemsEl.innerHTML = allItems.map(p => {
+    const typeLabel = p._type === 'research' ? '⚗' : '🏗';
+    return `<div class="plan-item">
+      <div class="plan-item-header">
+        <div class="plan-item-name">${typeLabel} ${p.name} <span style="color:var(--muted);font-weight:400;font-size:11px;">Lv${p.toLevel}</span></div>
+      </div>
+      <div class="plan-item-costs">
+        ${p.ore  ? `<span style="color:var(--ore)">⛏ ${fmt(p.ore)}</span>`  : ''}
+        ${p.sil  ? `<span style="color:var(--sil)">💠 ${fmt(p.sil)}</span>`  : ''}
+        ${p.hyd  ? `<span style="color:var(--hyd)">💧 ${fmt(p.hyd)}</span>`  : ''}
+        ${p.aly  ? `<span style="color:var(--aly)">⚙ ${fmt(p.aly)}</span>`  : ''}
+        ${p.time ? `<span style="color:var(--muted)">⏱ ${fmtTime(p.time)}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  const totOre  = allItems.reduce((s,p) => s + (p.ore||0), 0);
+  const totSil  = allItems.reduce((s,p) => s + (p.sil||0), 0);
+  const totHyd  = allItems.reduce((s,p) => s + (p.hyd||0), 0);
+  const totAly  = allItems.reduce((s,p) => s + (p.aly||0), 0);
+  const totTime = allItems.reduce((s,p) => s + (p.time||0), 0);
+
+  totalsEl.style.display = '';
+  document.getElementById('combined-totals-body').innerHTML = `
+    ${totOre ? `<div class="total-row"><span style="color:var(--ore)">⛏ Ore</span><span>${fmt(totOre)}</span></div>` : ''}
+    ${totSil ? `<div class="total-row"><span style="color:var(--sil)">💠 Silicates</span><span>${fmt(totSil)}</span></div>` : ''}
+    ${totHyd ? `<div class="total-row"><span style="color:var(--hyd)">💧 Hydrogen</span><span>${fmt(totHyd)}</span></div>` : ''}
+    ${totAly ? `<div class="total-row"><span style="color:var(--aly)">⚙ Alloys</span><span>${fmt(totAly)}</span></div>` : ''}
+    <div class="total-time"><span style="color:var(--muted)">⏱ Total Time</span><span>${fmtTime(totTime)}</span></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;">${plan.length} research + ${buildPlan.length} building steps</div>
+  `;
 }
 
 // ── Timer ticker ──────────────────────────────────────────────────────────────
@@ -1262,6 +1780,7 @@ async function boot() {
 
   maybeShowConsent();
   loadPlan();
+  loadBuildPlan();
   await loadPlanets();
   applyResearch();
   startTimers();
