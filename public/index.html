@@ -173,6 +173,18 @@
   .version-btn { background:none; border:none; color:var(--muted); font-size:11px; opacity:.6; cursor:pointer; padding:0; text-decoration:underline dotted; text-underline-offset:2px; }
   .version-btn:hover { opacity:1; color:var(--accent2); }
 
+  /* Resource bar */
+  #resource-bar { background:var(--panel); border-bottom:1px solid var(--border); padding:7px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; min-height:34px; }
+  #resource-bar.hidden { display:none; }
+  .res-group { display:flex; align-items:center; gap:12px; }
+  .res-group + .res-group { border-left:1px solid var(--border); padding-left:16px; }
+  .res-chip { display:flex; align-items:center; gap:4px; font-size:12px; font-variant-numeric:tabular-nums; }
+  .res-chip .res-icon { font-size:11px; }
+
+  /* Toast */
+  #plan-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--accent2); color:var(--text); padding:9px 18px; border-radius:8px; font-size:13px; z-index:999; opacity:0; pointer-events:none; transition:opacity .2s; white-space:nowrap; }
+  #plan-toast.show { opacity:1; }
+
   /* Consent banner */
   #consent-banner { background:#0f1e35; border-bottom:1px solid var(--accent); padding:12px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; font-size:12px; color:var(--text); }
   #consent-banner.hidden { display:none; }
@@ -333,6 +345,9 @@
   </div>
 </header>
 
+<div id="resource-bar" class="hidden"></div>
+<div id="plan-toast"></div>
+
 <div id="consent-banner" class="hidden">
   <span>🔒 NL Browser collects anonymous usage data (session activity, feature usage) to improve the app. No personal game data is stored. <a href="/privacy.html">Privacy Policy</a></span>
   <div style="display:flex;gap:8px;flex-shrink:0;">
@@ -463,8 +478,11 @@ function computeLevels(r) {
 let planetContext = {
   planetId: null,
   labLevel: 0,
-  resources: {},       // { ore, silicates, hydrogen, alloys }
-  activeJobs: [],      // activeResearches[] filtered to this planet
+  resources: {},
+  resourceRates: {},
+  population: null,
+  maxPopulation: null,
+  activeJobs: [],
 };
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -538,14 +556,101 @@ async function refreshPlanetContext() {
     const lab = buildings.research_lab || buildings['research_lab'] || {};
     planetContext.labLevel = lab.level || 0;
 
-    const resources = planetData.planet?.resources || planetData.resources || {};
+    const p = planetData.planet?.planet || planetData.planet || planetData;
     planetContext.resources = {
-      ore:       resources.ore       ?? resources.Ore       ?? 0,
-      silicates: resources.silicates ?? resources.Silicates ?? 0,
-      hydrogen:  resources.hydrogen  ?? resources.Hydrogen  ?? 0,
-      alloys:    resources.alloys    ?? resources.Alloys    ?? 0,
+      ore:         p.ore         ?? 0,
+      silicates:   p.silicates   ?? 0,
+      hydrogen:    p.hydrogen    ?? 0,
+      alloys:      p.alloys      ?? 0,
+      cryoIce:     p.cryoIce     ?? 0,
+      quantumDust: p.quantumDust ?? 0,
+      plasmaCore:  p.plasmaCore  ?? 0,
+      bioExtract:  p.bioExtract  ?? 0,
+      darkMatter:  p.darkMatter  ?? 0,
+      antimatter:  p.antimatter  ?? 0,
     };
+    planetContext.resourceRates = {
+      cryoIce:     p.cryoIceRate     ?? 0,
+      quantumDust: p.quantumDustRate ?? 0,
+      plasmaCore:  p.plasmaCoreRate  ?? 0,
+      bioExtract:  p.bioExtractRate  ?? 0,
+      darkMatter:  p.darkMatterRate  ?? 0,
+      antimatter:  p.antimatterRate  ?? 0,
+    };
+    planetContext.population    = p.population    ?? null;
+    planetContext.maxPopulation = p.maxPopulation ?? null;
+    renderResourceBar();
   } catch(e) {}
+}
+
+function renderResourceBar() {
+  const bar = document.getElementById('resource-bar');
+  const res = planetContext.resources;
+  const rates = planetContext.resourceRates || {};
+
+  const main = [
+    { key:'ore',       icon:'⛏', color:'var(--ore)', label:'Ore' },
+    { key:'silicates', icon:'💠', color:'var(--sil)', label:'Sil' },
+    { key:'hydrogen',  icon:'💧', color:'var(--hyd)', label:'Hyd' },
+    { key:'alloys',    icon:'⚙',  color:'var(--aly)', label:'Aly' },
+  ];
+
+  const rares = [
+    { key:'cryoIce',     icon:'❄', color:'#7dd3fc', label:'Cryo Ice' },
+    { key:'quantumDust', icon:'✨', color:'#a78bfa', label:'Quantum Dust' },
+    { key:'plasmaCore',  icon:'🔥', color:'#fb923c', label:'Plasma Core' },
+    { key:'bioExtract',  icon:'🌿', color:'#4ade80', label:'Bio Extract' },
+    { key:'darkMatter',  icon:'🌑', color:'#94a3b8', label:'Dark Matter' },
+    { key:'antimatter',  icon:'⚡', color:'#f472b6', label:'Antimatter' },
+  ].filter(r => (res[r.key] > 0) || (rates[r.key] > 0));
+
+  const mainChips = main.map(r =>
+    `<span class="res-chip"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span></span>`
+  ).join('');
+
+  const rareChips = rares.map(r =>
+    `<span class="res-chip" title="${r.label}"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span></span>`
+  ).join('');
+
+  const popChip = planetContext.population != null
+    ? `<span class="res-chip" title="Population"><span class="res-icon" style="color:var(--muted)">👥</span><span style="color:var(--muted)">${Math.floor(planetContext.population).toLocaleString()} / ${Math.floor(planetContext.maxPopulation).toLocaleString()}</span></span>`
+    : '';
+
+  bar.innerHTML = `
+    <div class="res-group">${mainChips}</div>
+    ${rares.length ? `<div class="res-group">${rareChips}</div>` : ''}
+    ${popChip ? `<div class="res-group">${popChip}</div>` : ''}
+  `;
+  bar.classList.remove('hidden');
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('plan-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function buildResearchIndex() {
+  const idx = {};
+  for (const r of researchData) idx[r.key] = r;
+  return idx;
+}
+
+function resolvePrereqChain(r, idx, visited = new Set()) {
+  const missing = [];
+  for (const req of (r.requirements || [])) {
+    if (req.type !== 'research') continue;
+    const dep = idx[req.key];
+    if (!dep || visited.has(dep.id)) continue;
+    visited.add(dep.id);
+    if (dep.level >= dep.maxLevel || dep.isMaxed) continue;
+    missing.push(...resolvePrereqChain(dep, idx, visited));
+    missing.push(dep);
+  }
+  return missing;
 }
 
 async function refreshAll() {
@@ -873,28 +978,38 @@ function togglePlanner() {
   document.getElementById('planner-toggle').classList.toggle('active', plannerOpen);
 }
 
+function makePlanItem(r, lvl) {
+  const levels = computeLevels(r);
+  const lvlData = levels[lvl - 1] || {};
+  return {
+    uid: Date.now() + Math.random(),
+    id: r.id, key: r.key,
+    name: r.name, branch: r.branch, era: r.era, category: r.category || '',
+    fromLevel: lvl - 1, toLevel: lvl, maxLevel: r.maxLevel,
+    ore: lvlData.ore || 0, sil: lvlData.sil || 0,
+    hyd: lvlData.hyd || 0, aly: lvlData.aly || 0, time: lvlData.time || 0,
+    requirements: r.requirements || [],
+    requiredLabLevel: r.requiredLabLevel || 0,
+    eraUnlocked: r.eraUnlocked,
+  };
+}
+
 function addToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r || planFull(r)) return;
-  const lvl = nextPlanLevel(r);
-  const levels = computeLevels(r);
-  const lvlData = levels[lvl - 1] || {};
-  plan.push({
-    uid: Date.now() + Math.random(),
-    id: r.id,
-    name: r.name,
-    branch: r.branch,
-    era: r.era,
-    category: r.category || '',
-    fromLevel: lvl - 1,
-    toLevel: lvl,
-    maxLevel: r.maxLevel,
-    ore: lvlData.ore || 0,
-    sil: lvlData.sil || 0,
-    hyd: lvlData.hyd || 0,
-    aly: lvlData.aly || 0,
-    time: lvlData.time || 0,
-  });
+
+  const idx = buildResearchIndex();
+  const prereqs = resolvePrereqChain(r, idx);
+  const alreadyQueued = new Set(plan.map(p => p.key));
+  const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
+
+  for (const dep of toAdd) {
+    plan.push(makePlanItem(dep, nextPlanLevel(dep)));
+  }
+  plan.push(makePlanItem(r, nextPlanLevel(r)));
+
+  if (toAdd.length) showToast(`Added "${r.name}" + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
+
   if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
   if (!plannerOpen) togglePlanner();
   renderPlanner();
@@ -911,31 +1026,26 @@ function toggleLevels(btn) {
 function addAllToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r) return;
-  const levels = computeLevels(r);
-  let added = false;
+
+  const idx = buildResearchIndex();
+  const prereqs = resolvePrereqChain(r, idx);
+  const alreadyQueued = new Set(plan.map(p => p.key));
+  const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
+
+  for (const dep of toAdd) {
+    plan.push(makePlanItem(dep, nextPlanLevel(dep)));
+  }
+
+  let added = 0;
   while (!planFull(r)) {
     const lvl = nextPlanLevel(r);
     if (lvl > r.maxLevel) break;
-    const lvlData = levels[lvl - 1] || {};
-    plan.push({
-      uid: Date.now() + Math.random(),
-      id: r.id,
-      name: r.name,
-      branch: r.branch,
-      era: r.era,
-      category: r.category || '',
-      fromLevel: lvl - 1,
-      toLevel: lvl,
-      maxLevel: r.maxLevel,
-      ore: lvlData.ore || 0,
-      sil: lvlData.sil || 0,
-      hyd: lvlData.hyd || 0,
-      aly: lvlData.aly || 0,
-      time: lvlData.time || 0,
-    });
-    added = true;
+    plan.push(makePlanItem(r, lvl));
+    added++;
   }
-  if (added) {
+
+  if (added || toAdd.length) {
+    if (toAdd.length) showToast(`Added "${r.name}" (all levels) + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
     if (!plannerOpen) togglePlanner();
     renderPlanner();
     applyResearch();
@@ -968,11 +1078,30 @@ function renderPlanner() {
     return;
   }
 
-  itemsEl.innerHTML = plan.map(p => `
-    <div class="plan-item">
+  const queuedKeys = new Set(plan.map(p => p.key));
+
+  itemsEl.innerHTML = plan.map(p => {
+    const prereqKeys = (p.requirements || []).filter(r => r.type === 'research').map(r => r.key);
+    const blockedByQueue = prereqKeys.some(k => {
+      const dep = researchData.find(r => r.key === k);
+      return dep && dep.level < dep.maxLevel && !dep.isMaxed && queuedKeys.has(k);
+    });
+    const blockedByExternal = (p.requiredLabLevel > 0 && planetContext.labLevel > 0 && planetContext.labLevel < p.requiredLabLevel)
+      || p.eraUnlocked === false;
+
+    const blockTag = blockedByExternal
+      ? `<span title="Blocked by a non-research requirement (lab level, era, or building)" style="font-size:10px;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:1px 5px;flex-shrink:0;">⛔ Blocked</span>`
+      : blockedByQueue
+      ? `<span title="Waiting on a prerequisite also in this queue" style="font-size:10px;color:var(--yellow);border:1px solid var(--yellow);border-radius:3px;padding:1px 5px;flex-shrink:0;">⏳ Queued</span>`
+      : '';
+
+    return `<div class="plan-item" style="${blockedByExternal ? 'border-color:#3a1a1a;' : blockedByQueue ? 'border-color:#3a2e00;' : ''}">
       <div class="plan-item-header">
         <div class="plan-item-name">${p.name} <span style="color:var(--muted);font-weight:400;font-size:11px;">Lv${p.toLevel}</span></div>
-        <button class="plan-item-remove" onclick="removeFromPlan(${p.uid})">×</button>
+        <div style="display:flex;align-items:center;gap:6px;">
+          ${blockTag}
+          <button class="plan-item-remove" onclick="removeFromPlan(${p.uid})">×</button>
+        </div>
       </div>
       <div class="plan-item-meta" style="color:${branchColor[p.branch]||'var(--muted)'}">
         Era ${p.era} · ${p.branch} · ${p.category.replace(/_/g,' ')}
@@ -984,7 +1113,8 @@ function renderPlanner() {
         ${p.aly ? `<span style="color:var(--aly)">⚙ ${fmt(p.aly)}</span>` : ''}
         <span style="color:var(--muted)">⏱ ${Math.round(p.time/60)}m</span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   // Totals
   const totOre = plan.reduce((s,p) => s + p.ore, 0);
