@@ -701,26 +701,30 @@ function renderResearchCards(list) {
         const levels = computeLevels(r);
         const remaining = levels.slice(r.level);
         const full = planFull(r);
-        return `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;">All Levels</span>
-            <button onclick="addAllToPlan('${r.id}')" ${full?'disabled':''} style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;" onmouseover="if(!this.disabled){this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)'}" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Add remaining</button>
-          </div>
-          <table style="width:100%;border-collapse:collapse;font-size:11px;">
-            <tr style="color:var(--muted)"><td>Lv</td><td style="color:var(--ore)">Ore</td>${levels[0].sil?'<td style="color:var(--sil)">Sil</td>':''}${levels[0].hyd?'<td style="color:var(--hyd)">Hyd</td>':''}${levels[0].aly?'<td style="color:var(--aly)">Aly</td>':''}<td>Time</td></tr>
+        const nextLvl = levels.find(l => l.level === r.level + 1);
+        const rowStyle = 'line-height:1;';
+        const tdStyle = 'padding:3px 6px 3px 0;';
+        const tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <tr style="color:var(--muted)"><td style="${tdStyle}">Lv</td><td style="${tdStyle}color:var(--ore)">Ore</td>${levels[0].sil?`<td style="${tdStyle}color:var(--sil)">Sil</td>`:''}${levels[0].hyd?`<td style="${tdStyle}color:var(--hyd)">Hyd</td>`:''}${levels[0].aly?`<td style="${tdStyle}color:var(--aly)">Aly</td>`:''}<td style="${tdStyle}">Time</td></tr>
             ${levels.map(l => {
               const done = l.level <= r.level;
               const current = l.level === r.level + 1;
-              return `<tr style="${done?'opacity:.35;':''}${current?'color:var(--text);':'color:var(--muted);'}">
-                <td>${l.level}${done?' ✓':''}</td>
-                <td>${l.ore?fmt(l.ore):'—'}</td>
-                ${levels[0].sil?`<td>${l.sil?fmt(l.sil):'—'}</td>`:''}
-                ${levels[0].hyd?`<td>${l.hyd?fmt(l.hyd):'—'}</td>`:''}
-                ${levels[0].aly?`<td>${l.aly?fmt(l.aly):'—'}</td>`:''}
-                <td>${Math.round(l.time/60)}m</td>
+              return `<tr style="${rowStyle}${done?'opacity:.3;':''}${current?'color:var(--text);font-weight:600;':'color:var(--muted);'}">
+                <td style="${tdStyle}">${l.level}${done?' ✓':''}</td>
+                <td style="${tdStyle}">${l.ore?fmt(l.ore):'—'}</td>
+                ${levels[0].sil?`<td style="${tdStyle}">${l.sil?fmt(l.sil):'—'}</td>`:''}
+                ${levels[0].hyd?`<td style="${tdStyle}">${l.hyd?fmt(l.hyd):'—'}</td>`:''}
+                ${levels[0].aly?`<td style="${tdStyle}">${l.aly?fmt(l.aly):'—'}</td>`:''}
+                <td style="${tdStyle}">${Math.round(l.time/60)}m</td>
               </tr>`;
             }).join('')}
-          </table>
+          </table>`;
+        return `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <button onclick="toggleLevels(this)" style="background:none;border:none;color:var(--muted);font-size:10px;cursor:pointer;padding:0;letter-spacing:.3px;text-transform:uppercase;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">▸ All levels</button>
+            <button onclick="addAllToPlan('${r.id}')" ${full?'disabled':''} style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;" onmouseover="if(!this.disabled){this.style.borderColor='var(--accent2)';this.style.color='var(--accent2)'}" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ Add remaining</button>
+          </div>
+          <div class="level-table" style="display:none;margin-top:6px;">${tableHtml}</div>
         </div>`;
       })() : ''}
     </div>`;
@@ -866,6 +870,13 @@ function addToPlan(researchId) {
   if (!plannerOpen) togglePlanner();
   renderPlanner();
   applyResearch();
+}
+
+function toggleLevels(btn) {
+  const table = btn.closest('div').nextElementSibling;
+  const open = table.style.display !== 'none';
+  table.style.display = open ? 'none' : 'block';
+  btn.textContent = (open ? '▸' : '▾') + ' All levels';
 }
 
 function addAllToPlan(researchId) {
