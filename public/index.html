@@ -419,7 +419,7 @@
 </div>
 
 <script>
-const VERSION = '1.0.3';
+const VERSION = '1.0.9';
 
 let researchData = [];
 let refreshTimer = null;
@@ -1174,6 +1174,64 @@ function hasConsent() {
 // ── Patch notes ───────────────────────────────────────────────────────────────
 
 const PATCH_NOTES = [
+  {
+    version: '1.0.9',
+    date: '2026-06-18',
+    notes: [
+      'Full level cost computation — all remaining levels shown per tech, factoring in your player cost multiplier',
+      'Expanded planner: queue individual levels or add all remaining at once',
+      'Level table collapsed by default — click "▸ All levels" to expand',
+      'Export now opens an info modal explaining use cases before downloading',
+      'Export modal invites guide authors to reach out (@SirDimwit on the NexusLegacy Discord)',
+      'Feedback modal now supports feature requests, bug reports, and inaccurate data reports',
+      'Feature request button made more prominent in the header',
+    ],
+  },
+  {
+    version: '1.0.8',
+    date: '2026-06-17',
+    notes: [
+      'Planet selector — switch between planets to see per-planet lab level, active jobs, and resource affordability',
+      'Lab-level gating: techs requiring a higher lab level than the selected planet are visually marked locked',
+      'Affordability overlay: techs you can\'t afford on the selected planet are visually dimmed',
+      'Active job indicator: shows in-progress research jobs on the selected planet',
+      'Manual login — paste your nexus_token directly to authenticate without the extension',
+    ],
+  },
+  {
+    version: '1.0.7',
+    date: '2026-06-16',
+    notes: [
+      'Manual credential login: provide your own session token via DevTools',
+      'Removed dev scripts, build artifacts, and store assets from repo',
+    ],
+  },
+  {
+    version: '1.0.6',
+    date: '2026-06-14',
+    notes: [
+      'Export button in header — download your full API snapshot as JSON',
+    ],
+  },
+  {
+    version: '1.0.5',
+    date: '2026-06-13',
+    notes: [
+      'Consent banner — telemetry opt-in/out stored in localStorage',
+      'App renamed to NL Browser across all surfaces',
+      'Privacy policy updated to reflect telemetry and consent',
+    ],
+  },
+  {
+    version: '1.0.4',
+    date: '2026-06-12',
+    notes: [
+      'Added suggestion box — send feature ideas directly from the app',
+      'Added patch notes viewer (you\'re looking at it)',
+      'Added extended telemetry: view preferences, planner usage, session duration, bounce rate, retention, auth health',
+      'Migrated usage tracking to Upstash Redis for persistence across deploys',
+    ],
+  },
   {
     version: '1.0.3',
     date: '2026-06-17',
