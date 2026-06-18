@@ -724,6 +724,17 @@ async function refreshPlanetContext() {
         alloysFromLevel: def.alloysFromLevel ?? 1,
         baseBuildTime: def.baseBuildTime || 0,
         buildTimeFactor: def.buildTimeFactor || 1,
+        energyPerLevel: def.energyPerLevel || 0,
+        productionPerLevel: def.productionPerLevel || 0,
+        productionResource: def.productionResource || null,
+        storagePerLevel: def.storagePerLevel || 0,
+        storageResource: def.storageResource || null,
+        populationPerLevel: def.populationPerLevel || 0,
+        populationGrowthPerLevel: def.populationGrowthPerLevel || 0,
+        consumptionPerLevel: def.consumptionPerLevel || 0,
+        consumptionResource: def.consumptionResource || null,
+        consumptionPerLevel2: def.consumptionPerLevel2 || 0,
+        consumptionResource2: def.consumptionResource2 || null,
         requirements: def.requirements || [],
         requirementsMet: def.requirementsMet !== false,
         disabledReason: def.disabledReason || null,
@@ -960,7 +971,10 @@ function renderResearchCards(list) {
     const endsAt = job?.endsAt || r.endsAt;
     return `<div class="research-item" style="${locked ? 'opacity:.6;' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
-        <div style="font-size:13px;font-weight:600;">${r.name}</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;">${r.name}</div>
+          ${r.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;">${r.description}</div>` : ''}
+        </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
           ${statusBadge[st]||''}
           <button class="plan-btn" onclick="addToPlan('${r.id}')" ${planFull(r)?'disabled':''} title="Add to plan">+</button>
@@ -1039,7 +1053,10 @@ function renderResearchColumns(list) {
           const effects = (r.effects||[]).filter(e=>e.value).map(e=>`<span style="font-size:11px;color:var(--muted)">${e.type.replace(/_/g,' ')} ${e.value>0?'+':''}${(e.value*100).toFixed(0)}%</span>`).join(' · ');
           return `<div class="research-item" style="margin-bottom:8px;max-width:310px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
-              <div style="font-size:13px;font-weight:600;">${r.name}</div>
+              <div>
+                <div style="font-size:13px;font-weight:600;">${r.name}</div>
+                ${r.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;">${r.description}</div>` : ''}
+              </div>
               <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
                 ${statusBadge[st]||''}
                 <button class="plan-btn" onclick="addToPlan('${r.id}')" ${planFull(r)?'disabled':''} title="Add to plan">+</button>
@@ -1467,6 +1484,42 @@ function clearBuildPlan() {
   applyBuildings();
 }
 
+function bEffectsHtml(b) {
+  const parts = [];
+  const res = { ore:'var(--ore)', silicates:'var(--sil)', hydrogen:'var(--hyd)', alloys:'var(--aly)',
+                 cryoIce:'#7dd3fc', quantumDust:'#a78bfa', plasmaCore:'#fb923c',
+                 bioExtract:'#4ade80', darkMatter:'#94a3b8', antimatter:'#f472b6' };
+  if (b.productionPerLevel && b.productionResource) {
+    const col = res[b.productionResource] || 'var(--accent)';
+    parts.push(`<span style="color:${col}">+${fmt(b.productionPerLevel * (b.level||1))}/s ${b.productionResource}</span>`);
+  }
+  if (b.storagePerLevel && b.storageResource) {
+    const col = res[b.storageResource] || 'var(--accent)';
+    parts.push(`<span style="color:${col}">+${fmt(b.storagePerLevel * (b.level||1))} ${b.storageResource} cap</span>`);
+  }
+  if (b.energyPerLevel) {
+    const col = b.energyPerLevel > 0 ? 'var(--yellow)' : 'var(--red)';
+    const sign = b.energyPerLevel > 0 ? '+' : '';
+    parts.push(`<span style="color:${col}">${sign}${b.energyPerLevel * (b.level||1)} energy</span>`);
+  }
+  if (b.populationPerLevel) {
+    parts.push(`<span style="color:var(--muted)">+${b.populationPerLevel * (b.level||1)} pop cap</span>`);
+  }
+  if (b.populationGrowthPerLevel) {
+    parts.push(`<span style="color:var(--muted)">+${b.populationGrowthPerLevel * (b.level||1)}/s growth</span>`);
+  }
+  if (b.consumptionPerLevel && b.consumptionResource) {
+    const col = res[b.consumptionResource] || 'var(--muted)';
+    parts.push(`<span style="color:${col}">−${fmt(b.consumptionPerLevel * (b.level||1))}/s ${b.consumptionResource}</span>`);
+  }
+  if (b.consumptionPerLevel2 && b.consumptionResource2) {
+    const col = res[b.consumptionResource2] || 'var(--muted)';
+    parts.push(`<span style="color:${col}">−${fmt(b.consumptionPerLevel2 * (b.level||1))}/s ${b.consumptionResource2}</span>`);
+  }
+  if (!parts.length) return '';
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;margin-top:2px;">${parts.join('')}</div>`;
+}
+
 function applyBuildings() {
   const allBuildings = planetContext.buildings || {};
   let list = Object.values(allBuildings);
@@ -1519,7 +1572,7 @@ function applyBuildings() {
     out.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
       <thead><tr style="border-bottom:2px solid var(--border);color:var(--muted);text-align:left;">
         <th style="padding:8px 10px;">Building</th>
-        <th style="padding:8px 10px;">Cat</th>
+        <th style="padding:8px 10px;">Provides</th>
         <th style="padding:8px 10px;text-align:center;">Level</th>
         <th style="padding:8px 10px;text-align:right;">⛏ Ore</th>
         <th style="padding:8px 10px;text-align:right;">💠 Sil</th>
@@ -1535,8 +1588,9 @@ function applyBuildings() {
         const c = st !== 'maxed' ? bNextLevelCost(b, nextLvl) : {};
         const stColor = {upgrading:'var(--green)',maxed:'var(--purple)',built:'var(--accent)',available:'var(--yellow)',locked:'var(--muted)',disabled:'var(--red)'}[st]||'var(--muted)';
         const canAdd = st !== 'maxed';
-        return `<tr style="border-bottom:1px solid var(--border);">
+        return `<tr style="border-bottom:1px solid var(--border);" title="${b.description||''}">
           <td style="padding:8px 10px;font-weight:500;">${b.name||b.key}<br><span style="font-size:10px;color:${stColor};">${st}</span></td>
+          <td style="padding:8px 10px;">${bEffectsHtml(b)||'<span style="color:var(--muted);font-size:11px;">—</span>'}</td>
           <td style="padding:8px 10px;color:${BCAT_COLORS[b.category]||'var(--muted)'};">${b.category||'—'}</td>
           <td style="padding:8px 10px;text-align:center;">${b.level||0}${b.maxLevel?' / '+b.maxLevel:''}</td>
           <td style="padding:8px 10px;text-align:right;color:var(--ore);">${c.ore ? fmt(c.ore) : '—'}</td>
@@ -1570,9 +1624,11 @@ function applyBuildings() {
               ${b.maxLevel ? `<div style="font-size:10px;color:var(--muted);">/ ${b.maxLevel}</div>` : ''}
             </div>
           </div>
+          ${b.description ? `<div style="font-size:11px;color:var(--muted);line-height:1.5;">${b.description}</div>` : ''}
           ${b.maxLevel ? `<div style="height:4px;background:var(--panel2);border-radius:2px;overflow:hidden;">
             <div style="width:${progressPct}%;height:100%;background:${stColor};border-radius:2px;"></div>
           </div>` : ''}
+          ${bEffectsHtml(b)}
           ${st === 'upgrading' ? `<div style="font-size:11px;color:var(--green);">⚙ Upgrading…</div>` : ''}
           ${b.disabledReason ? `<div style="font-size:11px;color:var(--red);">⛔ ${b.disabledReason}</div>` : ''}
           ${st !== 'maxed' ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">Next level (Lv${nextLvl})</div>
