@@ -619,7 +619,7 @@ function renderResourceBar() {
   ];
 
   const mainChips = main.map(r =>
-    `<span class="res-chip"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span></span>`
+    `<span class="res-chip" title="${r.label}"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span></span>`
   ).join('');
 
   const rareChips = rares.map(r =>
