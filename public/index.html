@@ -441,8 +441,19 @@ const VERSION = '1.0.9';
 
 let researchData = [];
 let refreshTimer = null;
-let plan = []; // [{id, name, branch, era, category, ore, sil, hyd, aly, time, level, maxLevel}]
+let plan = [];
 let plannerOpen = false;
+
+function savePlan() {
+  try { localStorage.setItem('nlb_plan', JSON.stringify(plan)); } catch(e) {}
+}
+
+function loadPlan() {
+  try {
+    const raw = localStorage.getItem('nlb_plan');
+    if (raw) plan = JSON.parse(raw);
+  } catch(e) { plan = []; }
+}
 
 // ── Level cost computation ────────────────────────────────────────────────────
 
@@ -1134,8 +1145,10 @@ function renderPlanner() {
   const totTime = plan.reduce((s,p) => s + p.time, 0);
 
   const fmtTime = (s) => {
-    const h = Math.floor(s / 3600);
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
     const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
   };
@@ -1154,6 +1167,8 @@ function renderPlanner() {
 
   document.getElementById('planner-totals-top').style.display = '';
   document.getElementById('totals-body-top').innerHTML = totalsHtml;
+
+  savePlan();
 }
 
 // ── Timer ticker ──────────────────────────────────────────────────────────────
@@ -1246,6 +1261,7 @@ async function boot() {
   if (err) history.replaceState({}, '', '/');
 
   maybeShowConsent();
+  loadPlan();
   await loadPlanets();
   applyResearch();
   startTimers();
