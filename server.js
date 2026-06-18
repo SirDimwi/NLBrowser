@@ -402,6 +402,22 @@ app.post('/data/discover-planet', requireAuth, async (req, res) => {
   res.json({ planetId });
 });
 
+app.get('/data/planets', requireAuth, async (req, res) => {
+  try {
+    const data = await req.apiGet('/api/planets');
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/data/set-planet', requireAuth, (req, res) => {
+  const { planetId } = req.body;
+  if (!planetId) return res.status(400).json({ error: 'planetId required' });
+  req.session.user.planetId = planetId;
+  res.json({ ok: true, planetId });
+});
+
 app.get('/data/:endpoint', requireAuth, async (req, res) => {
   req.session.apiCallCount = (req.session.apiCallCount ?? 0) + 1;
   const fn = routes[req.params.endpoint];

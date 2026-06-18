@@ -291,6 +291,9 @@
       <strong id="header-username"></strong>
       <span id="header-universe"></span>
     </div>
+    <select id="planet-selector" class="refresh-btn" onchange="selectPlanet(this.value)" style="cursor:pointer;max-width:180px;" title="Active planet">
+      <option value="">Loading planets…</option>
+    </select>
     <span class="last-updated" id="last-updated">—</span>
     <button class="version-btn" onclick="openPatchNotes()" title="Patch notes">v<span id="app-version"></span></button>
     <button class="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
@@ -396,6 +399,14 @@ let refreshTimer = null;
 let plan = []; // [{id, name, branch, era, category, ore, sil, hyd, aly, time, level, maxLevel}]
 let plannerOpen = false;
 
+// Planet context — per-planet overlay data
+let planetContext = {
+  planetId: null,
+  labLevel: 0,
+  resources: {},       // { ore, silicates, hydrogen, alloys }
+  activeJobs: [],      // activeResearches[] filtered to this planet
+};
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 function fmt(n) {
@@ -417,24 +428,78 @@ function countdown(dateStr) {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
+async function loadPlanets() {
+  try {
+    const res = await fetch('/data/planets');
+    if (!res.ok) return;
+    const data = await res.json();
+    const planets = data.planets || [];
+    const sel = document.getElementById('planet-selector');
+    sel.innerHTML = planets.map(p =>
+      `<option value="${p.id}">${p.name}${p.isHomeworld ? ' ★' : ''}</option>`
+    ).join('');
+    // Set selector to current session planet
+    const meRes = await fetch('/me');
+    const me = await meRes.json();
+    if (me.authenticated && me.user.planetId) {
+      sel.value = me.user.planetId;
+      planetContext.planetId = me.user.planetId;
+    } else if (planets.length) {
+      planetContext.planetId = planets[0].id;
+    }
+    await refreshPlanetContext();
+  } catch(e) {}
+}
+
+async function selectPlanet(planetId) {
+  if (!planetId) return;
+  planetContext.planetId = planetId;
+  await fetch('/data/set-planet', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ planetId }) });
+  await refreshPlanetContext();
+  applyResearch();
+}
+
+async function refreshPlanetContext() {
+  const id = planetContext.planetId;
+  if (!id) return;
+  try {
+    const [resData, planetData] = await Promise.all([
+      fetch('/data/research').then(r => r.json()),
+      fetch(`/data/planet/${id}`).then(r => r.json()),
+    ]);
+
+    researchData = resData.research || [];
+
+    const activeResearches = resData.activeResearches || [];
+    planetContext.activeJobs = activeResearches.filter(j => j.planetId == id);
+
+    const buildings = planetData.planet?.buildings || planetData.buildings || {};
+    const lab = buildings.research_lab || buildings['research_lab'] || {};
+    planetContext.labLevel = lab.level || 0;
+
+    const resources = planetData.planet?.resources || planetData.resources || {};
+    planetContext.resources = {
+      ore:       resources.ore       ?? resources.Ore       ?? 0,
+      silicates: resources.silicates ?? resources.Silicates ?? 0,
+      hydrogen:  resources.hydrogen  ?? resources.Hydrogen  ?? 0,
+      alloys:    resources.alloys    ?? resources.Alloys    ?? 0,
+    };
+  } catch(e) {}
+}
+
 async function refreshAll() {
   document.getElementById('last-updated').textContent = 'Refreshing...';
   if (refreshTimer) clearTimeout(refreshTimer);
 
   try {
-    const res = await fetch('/data/research');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    researchData = data.research || [];
+    await refreshPlanetContext();
     applyResearch();
     document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
   } catch(e) {
     document.getElementById('last-updated').textContent = 'Error: ' + e.message;
   }
 
-  // Tick countdowns
   startTimers();
-  // Auto-refresh every 5 minutes
   refreshTimer = setTimeout(refreshAll, 5 * 60 * 1000);
 }
 
@@ -490,11 +555,31 @@ function setView(val) {
 }
 
 function rStatusOf(r) {
+  // Check if this tech has an active job on the selected planet
+  if (planetContext.activeJobs.some(j => j.researchId == r.id || j.techId == r.id || j.name === r.name)) return 'in_progress';
   if (r.status === 'in_progress') return 'in_progress';
   if (r.isMaxed) return 'maxed';
   if (r.status === 'completed' || r.level > 0) return 'completed';
   if (!r.eraUnlocked) return 'locked';
   return 'available';
+}
+
+function activeJobFor(r) {
+  return planetContext.activeJobs.find(j => j.researchId == r.id || j.techId == r.id || j.name === r.name) || null;
+}
+
+function labLocked(r) {
+  if (!r.requiredLabLevel) return false;
+  return planetContext.labLevel > 0 && planetContext.labLevel < r.requiredLabLevel;
+}
+
+function canAfford(r) {
+  if (!r.nextCostOre && !r.nextCostSilicates && !r.nextCostHydrogen && !r.nextCostAlloys) return true;
+  const res = planetContext.resources;
+  return (r.nextCostOre        || 0) <= (res.ore       || 0) &&
+         (r.nextCostSilicates  || 0) <= (res.silicates || 0) &&
+         (r.nextCostHydrogen   || 0) <= (res.hydrogen  || 0) &&
+         (r.nextCostAlloys     || 0) <= (res.alloys    || 0);
 }
 
 function applyResearch() {
@@ -549,7 +634,11 @@ function renderResearchCards(list) {
     const pct = Math.round((r.level / r.maxLevel) * 100);
     const totalCost = (r.nextCostOre||0)+(r.nextCostSilicates||0)+(r.nextCostHydrogen||0)+(r.nextCostAlloys||0);
     const effects = (r.effects||[]).filter(e=>e.value).map(e=>`<span style="font-size:11px;color:var(--muted)">${e.type.replace(/_/g,' ')} ${e.value>0?'+':''}${(e.value*100).toFixed(0)}%</span>`).join(' · ');
-    return `<div class="research-item">
+    const job = activeJobFor(r);
+    const locked = labLocked(r);
+    const affordable = !r.isMaxed && totalCost > 0 ? canAfford(r) : true;
+    const endsAt = job?.endsAt || r.endsAt;
+    return `<div class="research-item" style="${locked ? 'opacity:.6;' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
         <div style="font-size:13px;font-weight:600;">${r.name}</div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
@@ -559,6 +648,7 @@ function renderResearchCards(list) {
       </div>
       <div style="font-size:11px;color:${branchColor[r.branch]||'var(--muted)'};text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">
         Era ${r.era} · ${r.branch} · ${(r.category||'').replace(/_/g,' ')}
+        ${locked ? `<span style="color:var(--yellow);margin-left:6px;">🔒 Lab Lv${r.requiredLabLevel} req.</span>` : ''}
       </div>
       <div style="margin:8px 0 4px;">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;">
@@ -566,12 +656,12 @@ function renderResearchCards(list) {
         </div>
         <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
       </div>
-      ${st==='in_progress' ? `<div style="font-size:12px;color:var(--green);margin-top:6px;">Completes: <span class="mission-timer" data-time="${r.endsAt}">—</span></div>` : ''}
+      ${st==='in_progress' && endsAt ? `<div style="font-size:12px;color:var(--green);margin-top:6px;">Completes: <span class="mission-timer" data-time="${endsAt}">—</span></div>` : ''}
       ${!r.isMaxed&&totalCost>0 ? `<div style="font-size:11px;color:var(--muted);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
-        ${r.nextCostOre        ? `<span style="color:var(--ore)">⛏ ${fmt(r.nextCostOre)}</span>` : ''}
-        ${r.nextCostSilicates  ? `<span style="color:var(--sil)">💠 ${fmt(r.nextCostSilicates)}</span>` : ''}
-        ${r.nextCostHydrogen   ? `<span style="color:var(--hyd)">💧 ${fmt(r.nextCostHydrogen)}</span>` : ''}
-        ${r.nextCostAlloys     ? `<span style="color:var(--aly)">⚙ ${fmt(r.nextCostAlloys)}</span>` : ''}
+        ${r.nextCostOre        ? `<span style="color:${(planetContext.resources.ore||0)<r.nextCostOre?'var(--red)':'var(--ore)'}">⛏ ${fmt(r.nextCostOre)}</span>` : ''}
+        ${r.nextCostSilicates  ? `<span style="color:${(planetContext.resources.silicates||0)<r.nextCostSilicates?'var(--red)':'var(--sil)'}">💠 ${fmt(r.nextCostSilicates)}</span>` : ''}
+        ${r.nextCostHydrogen   ? `<span style="color:${(planetContext.resources.hydrogen||0)<r.nextCostHydrogen?'var(--red)':'var(--hyd)'}">💧 ${fmt(r.nextCostHydrogen)}</span>` : ''}
+        ${r.nextCostAlloys     ? `<span style="color:${(planetContext.resources.alloys||0)<r.nextCostAlloys?'var(--red)':'var(--aly)'}">⚙ ${fmt(r.nextCostAlloys)}</span>` : ''}
         <span>⏱ ${Math.round((r.nextResearchTime||0)/60)}m</span>
       </div>` : ''}
       ${effects ? `<div style="margin-top:6px;line-height:1.6;">${effects}</div>` : ''}
@@ -873,7 +963,10 @@ async function boot() {
   if (err) history.replaceState({}, '', '/');
 
   maybeShowConsent();
-  refreshAll();
+  await loadPlanets();
+  applyResearch();
+  startTimers();
+  refreshTimer = setTimeout(refreshAll, 5 * 60 * 1000);
 }
 
 boot();
