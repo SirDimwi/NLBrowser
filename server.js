@@ -322,8 +322,9 @@ app.post('/logout', (req, res) => {
   const userId = req.session.user?.userId;
   const start  = req.session.startTime;
   const calls  = req.session.apiCallCount ?? 0;
+  const track  = req.body?.trackSession !== false;
   req.session.destroy();
-  if (userId && start) {
+  if (track && userId && start) {
     recordEvent({ type: 'session_end', duration: Date.now() - start, bounce: calls <= 1 }, userId);
   }
   res.json({ ok: true });
@@ -445,10 +446,11 @@ app.post('/suggest', requireAuth, async (req, res) => {
   const text = (req.body?.text ?? '').trim();
   if (!text || text.length > 500) return res.status(400).json({ error: 'Invalid suggestion' });
 
+  const anon = req.body?.anonymous === true;
   const entry = JSON.stringify({
     text,
-    user: req.session.user?.username ?? 'unknown',
-    userId: req.session.user?.userId,
+    user:   anon ? 'anonymous' : (req.session.user?.username ?? 'unknown'),
+    userId: anon ? null : req.session.user?.userId,
     at: new Date().toISOString(),
   });
 
@@ -475,4 +477,16 @@ app.get('/stats', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Nexus Legacy Dashboard → http://localhost:${PORT}`));
+app.listen(PORT, async () => {
+  console.log(`NL Browser → http://localhost:${PORT}`);
+  if (!REDIS_URL || !REDIS_TOKEN) {
+    console.warn('⚠  Redis: UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN not set — telemetry disabled');
+  } else {
+    const pong = await redisCmd('PING');
+    if (pong === 'PONG') {
+      console.log('✓  Redis: connected to Upstash');
+    } else {
+      console.error('✗  Redis: connection failed — check credentials');
+    }
+  }
+});

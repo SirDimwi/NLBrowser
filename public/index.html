@@ -162,6 +162,12 @@
   .version-btn { background:none; border:none; color:var(--muted); font-size:11px; opacity:.6; cursor:pointer; padding:0; text-decoration:underline dotted; text-underline-offset:2px; }
   .version-btn:hover { opacity:1; color:var(--accent2); }
 
+  /* Consent banner */
+  #consent-banner { background:#0f1e35; border-bottom:1px solid var(--accent); padding:12px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; font-size:12px; color:var(--text); }
+  #consent-banner.hidden { display:none; }
+  #consent-banner a { color:var(--accent2); }
+  .consent-ok { background:var(--accent); border:none; color:#fff; padding:5px 16px; border-radius:5px; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; }
+
   scrollbar-width: thin;
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: var(--panel); }
@@ -254,6 +260,14 @@
     <button class="refresh-btn" onclick="logout()" style="color:var(--muted);">Log Out</button>
   </div>
 </header>
+
+<div id="consent-banner" class="hidden">
+  <span>🔒 NL Browser collects anonymous usage data (session activity, feature usage) to improve the app. No personal game data is stored. <a href="/privacy.html">Privacy Policy</a></span>
+  <div style="display:flex;gap:8px;flex-shrink:0;">
+    <button class="modal-cancel" style="font-size:12px;padding:5px 14px;" onclick="dismissConsent(false)">Decline</button>
+    <button class="consent-ok" onclick="dismissConsent(true)">Accept</button>
+  </div>
+</div>
 
 <div id="app-body">
 <div id="research-main">
@@ -431,7 +445,7 @@ function setView(val) {
   document.getElementById('view-cards').style.borderColor   = val==='cards'   ? 'var(--accent)' : '';
   document.getElementById('view-columns').style.borderColor = val==='columns' ? 'var(--accent)' : '';
   document.getElementById('view-table').style.borderColor   = val==='table'   ? 'var(--accent)' : '';
-  fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'view', view: val}) }).catch(()=>{});
+  if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'view', view: val}) }).catch(()=>{});
   applyResearch();
 }
 
@@ -653,7 +667,7 @@ function addToPlan(researchId) {
     aly: r.nextCostAlloys || 0,
     time: r.nextResearchTime || 0,
   });
-  fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
+  if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
   if (!plannerOpen) togglePlanner();
   renderPlanner();
   applyResearch(); // refresh + button disabled states
@@ -747,7 +761,11 @@ function startTimers() {
 // ── Auth & Boot ───────────────────────────────────────────────────────────────
 
 async function logout() {
-  await fetch('/logout', { method: 'POST' });
+  await fetch('/logout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackSession: hasConsent() }),
+  });
   location.reload();
 }
 
@@ -780,10 +798,28 @@ async function boot() {
 
   if (err) history.replaceState({}, '', '/');
 
+  maybeShowConsent();
   refreshAll();
 }
 
 boot();
+
+// ── Consent banner ───────────────────────────────────────────────────────────
+
+function maybeShowConsent() {
+  if (!localStorage.getItem('nlb_consent')) {
+    document.getElementById('consent-banner').classList.remove('hidden');
+  }
+}
+
+function dismissConsent(accepted) {
+  localStorage.setItem('nlb_consent', accepted ? 'yes' : 'no');
+  document.getElementById('consent-banner').classList.add('hidden');
+}
+
+function hasConsent() {
+  return localStorage.getItem('nlb_consent') === 'yes';
+}
 
 // ── Patch notes ───────────────────────────────────────────────────────────────
 
@@ -888,7 +924,7 @@ async function submitSuggest() {
     const res = await fetch('/suggest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, anonymous: !hasConsent() }),
     });
     const status = document.getElementById('suggest-status');
     if (res.ok) {
