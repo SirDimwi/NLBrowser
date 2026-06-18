@@ -397,7 +397,7 @@ function renderResearchCards(list) {
         <div style="font-size:13px;font-weight:600;">${r.name}</div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
           ${statusBadge[st]||''}
-          <button class="plan-btn" onclick="addToPlan('${r.id}')" ${r.isMaxed?'disabled':''} title="Add to plan">+</button>
+          <button class="plan-btn" onclick="addToPlan('${r.id}')" ${planFull(r)?'disabled':''} title="Add to plan">+</button>
         </div>
       </div>
       <div style="font-size:11px;color:${branchColor[r.branch]||'var(--muted)'};text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">
@@ -455,13 +455,18 @@ function renderResearchTable(list) {
         <td style="color:var(--ore)">${r.nextCostOre?fmt(r.nextCostOre):'—'}</td>
         <td style="color:var(--muted)">${totalCost?fmt(totalCost):'—'}</td>
         <td style="color:var(--muted)">${r.nextResearchTime?Math.round(r.nextResearchTime/60)+'m':'—'}</td>
-        <td><button class="plan-btn" onclick="addToPlan('${r.id}')" ${r.isMaxed?'disabled':''} title="Add to plan">+</button></td>
+        <td><button class="plan-btn" onclick="addToPlan('${r.id}')" ${planFull(r)?'disabled':''} title="Add to plan">+</button></td>
       </tr>`;
     }).join('')}</tbody>
   </table></div>`;
 }
 
 // ── Planner ───────────────────────────────────────────────────────────────────
+
+function planFull(r) {
+  const queued = plan.filter(p => p.id == r.id).length;
+  return r.level + queued >= r.maxLevel;
+}
 
 function togglePlanner() {
   plannerOpen = !plannerOpen;
@@ -471,7 +476,10 @@ function togglePlanner() {
 
 function addToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
-  if (!r || r.isMaxed) return;
+  if (!r) return;
+  const alreadyQueued = plan.filter(p => p.id == researchId).length;
+  const plannedLevel = r.level + alreadyQueued;
+  if (plannedLevel >= r.maxLevel) return; // all remaining levels already queued
   plan.push({
     uid: Date.now() + Math.random(),
     id: r.id,
@@ -479,7 +487,8 @@ function addToPlan(researchId) {
     branch: r.branch,
     era: r.era,
     category: r.category || '',
-    level: r.level,
+    fromLevel: plannedLevel,
+    toLevel: plannedLevel + 1,
     maxLevel: r.maxLevel,
     ore: r.nextCostOre || 0,
     sil: r.nextCostSilicates || 0,
@@ -489,16 +498,19 @@ function addToPlan(researchId) {
   });
   if (!plannerOpen) togglePlanner();
   renderPlanner();
+  applyResearch(); // refresh + button disabled states
 }
 
 function removeFromPlan(uid) {
   plan = plan.filter(p => p.uid !== uid);
   renderPlanner();
+  applyResearch();
 }
 
 function clearPlan() {
   plan = [];
   renderPlanner();
+  applyResearch();
 }
 
 function renderPlanner() {
@@ -524,7 +536,7 @@ function renderPlanner() {
       <div class="plan-item-meta" style="color:${branchColor[p.branch]||'var(--muted)'}">
         Era ${p.era} · ${p.branch} · ${p.category.replace(/_/g,' ')}
       </div>
-      <div class="plan-item-meta">Level ${p.level} → ${p.level + 1} / ${p.maxLevel}</div>
+      <div class="plan-item-meta">Level ${p.fromLevel} → ${p.toLevel} / ${p.maxLevel}</div>
       <div class="plan-item-costs">
         ${p.ore ? `<span style="color:var(--ore)">⛏ ${fmt(p.ore)}</span>` : ''}
         ${p.sil ? `<span style="color:var(--sil)">💠 ${fmt(p.sil)}</span>` : ''}
