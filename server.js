@@ -7,6 +7,43 @@ const { createClient } = require('./client');
 
 const app = express();
 const EXPORT_PATH = path.join(__dirname, 'nexus_export.json');
+const USAGE_PATH  = path.join(__dirname, 'usage.json');
+
+// ── Usage tracking ────────────────────────────────────────────────────────────
+
+function loadUsage() {
+  try { return JSON.parse(fs.readFileSync(USAGE_PATH, 'utf8')); } catch { return {}; }
+}
+
+function recordUsage(userId) {
+  if (!userId) return;
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const data = loadUsage();
+  if (!data[today]) data[today] = {};
+  data[today][String(userId)] = (data[today][String(userId)] || 0) + 1;
+  try { fs.writeFileSync(USAGE_PATH, JSON.stringify(data)); } catch {}
+}
+
+function computeStats() {
+  const data = loadUsage();
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const dau = Object.keys(data[today] || {}).length;
+
+  const mauUsers = new Set();
+  for (const [date, users] of Object.entries(data)) {
+    if (date >= cutoff) Object.keys(users).forEach(u => mauUsers.add(u));
+  }
+
+  // Build daily series (last 30 days)
+  const daily = {};
+  for (const [date, users] of Object.entries(data)) {
+    if (date >= cutoff) daily[date] = Object.keys(users).length;
+  }
+
+  return { dau, mau: mauUsers.size, daily };
+}
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +140,7 @@ app.get('/auth', async (req, res) => {
     exp:         payload.exp,
   };
 
+  recordUsage(payload.userId);
   res.redirect('/');
 });
 
@@ -219,6 +257,12 @@ app.post('/export', requireAuth, async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.get('/stats', (req, res) => {
+  const key = process.env.STATS_KEY;
+  if (key && req.query.key !== key) return res.status(401).json({ error: 'Unauthorized' });
+  res.json(computeStats());
 });
 
 const PORT = process.env.PORT || 3000;

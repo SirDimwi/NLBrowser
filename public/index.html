@@ -391,7 +391,7 @@ const statusBadge = {
 };
 
 function renderResearchCards(list) {
-  return `<div class="grid grid-3">${list.map(r => {
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,calc((100% - 32px)/3)),300px));gap:16px;">${list.map(r => {
     const st = rStatusOf(r);
     const pct = Math.round((r.level / r.maxLevel) * 100);
     const totalCost = (r.nextCostOre||0)+(r.nextCostSilicates||0)+(r.nextCostHydrogen||0)+(r.nextCostAlloys||0);
