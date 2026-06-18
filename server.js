@@ -297,6 +297,32 @@ app.get('/auth', async (req, res) => {
   res.redirect('/');
 });
 
+app.post('/auth/manual', async (req, res) => {
+  const token = (req.body.token || '').trim();
+  if (!token) return res.status(400).json({ error: 'No token provided.' });
+
+  const payload = decodeJwt(token);
+  if (!payload) { recordAuthFailure(); return res.status(400).json({ error: 'Invalid token. Make sure you copied the full nexus_token cookie value.' }); }
+
+  if (payload.exp && Date.now() / 1000 > payload.exp) {
+    recordAuthFailure();
+    return res.status(400).json({ error: 'Token has expired. Log in to Nexus Legacy again to get a fresh token.' });
+  }
+
+  const universeKey = payload.universeKey || 's0';
+  const { api, get } = createClient(token, universeKey);
+  const planetId = await discoverPlanetId(api, get);
+  if (!planetId) { recordAuthFailure(); return res.status(400).json({ error: 'Could not connect to Nexus Legacy API. Check that your token is current.' }); }
+
+  req.session.token = token;
+  req.session.user = { userId: payload.userId, username: payload.username, race: payload.race, leaderType: payload.leaderType, universeKey, planetId, exp: payload.exp };
+  req.session.startTime = Date.now();
+  req.session.apiCallCount = 0;
+  recordUsage(payload.userId);
+  recordAuthSuccess();
+  res.json({ ok: true });
+});
+
 // Dev shortcut: auto-login from .env token (localhost only)
 app.get('/dev-login', async (req, res) => {
   if (process.env.NODE_ENV === 'production') return res.status(403).send('Forbidden');

@@ -49,6 +49,17 @@
   .step-text small { color:var(--muted); display:block; }
   .login-error { background:#1f0f0f; border:1px solid var(--red); color:var(--red); border-radius:8px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:none; }
   .login-error.visible { display:block; }
+  .login-card-alt { display:none; }
+  .login-card-alt.visible { display:block; }
+  .login-card-main.hidden { display:none; }
+  .login-back { background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; padding:0; margin-bottom:20px; display:flex; align-items:center; gap:6px; }
+  .login-back:hover { color:var(--text); }
+  .manual-label { font-size:12px; color:var(--muted); text-align:left; margin-bottom:4px; }
+  .manual-input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-size:13px; font-family:monospace; box-sizing:border-box; margin-bottom:16px; }
+  .manual-input:focus { outline:none; border-color:var(--accent); }
+  .manual-input.error { border-color:var(--red); }
+  .manual-steps { text-align:left; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin-bottom:20px; font-size:12px; color:var(--muted); line-height:1.8; }
+  .manual-steps code { background:var(--panel); padding:1px 5px; border-radius:4px; color:var(--text); font-size:11px; }
 
   /* Layout */
   main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
@@ -178,7 +189,7 @@
 
 <!-- Login screen -->
 <div id="login-screen">
-  <div class="login-card">
+  <div class="login-card login-card-main">
     <div class="login-logo">NEXUS LEGACY</div>
     <div class="login-sub">Research Browser</div>
 
@@ -208,9 +219,37 @@
       </div>
     </div>
 
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:16px;" onclick="showManualLogin()">Provide my own credentials</button>
+
     <div style="border-top:1px solid var(--border);padding-top:20px;font-size:12px;color:var(--muted);">
       <a href="/privacy.html" style="color:var(--accent);">Privacy Policy</a>
       &nbsp;·&nbsp; Your session token never leaves the server
+    </div>
+  </div>
+
+  <div class="login-card login-card-alt" id="manual-login-card">
+    <button class="login-back" onclick="showMainLogin()">← Back</button>
+    <div class="login-logo">NEXUS LEGACY</div>
+    <div class="login-sub" style="margin-bottom:20px;">Manual Login</div>
+
+    <div class="manual-steps">
+      <strong style="color:var(--text);">How to find your session token:</strong><br>
+      1. Log in to Nexus Legacy in your browser<br>
+      2. Press <code>F12</code> to open DevTools<br>
+      3. Go to <code>Application</code> → <code>Cookies</code><br>
+      4. Find the cookie named <code>nexus_token</code><br>
+      5. Copy the full value and paste it below
+    </div>
+
+    <div id="manual-error" class="login-error"></div>
+
+    <div class="manual-label">Session Token</div>
+    <input id="manual-token" class="manual-input" type="password" placeholder="Paste your nexus_token value here" autocomplete="off" />
+
+    <button class="btn" style="width:100%;" onclick="submitManualLogin()">Connect</button>
+
+    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;font-size:12px;color:var(--muted);">
+      Your token is stored server-side only and never sent to the client
     </div>
   </div>
 </div>
@@ -773,6 +812,40 @@ async function logout() {
 async function boot() {
   const params = new URLSearchParams(location.search);
   const err = params.get('error');
+
+  function showManualLogin() {
+    document.querySelector('.login-card-main').classList.add('hidden');
+    document.getElementById('manual-login-card').classList.add('visible');
+  }
+  function showMainLogin() {
+    document.querySelector('.login-card-main').classList.remove('hidden');
+    document.getElementById('manual-login-card').classList.remove('visible');
+    document.getElementById('manual-error').classList.remove('visible');
+    document.getElementById('manual-token').classList.remove('error');
+    document.getElementById('manual-token').value = '';
+  }
+  async function submitManualLogin() {
+    const input = document.getElementById('manual-token');
+    const errEl = document.getElementById('manual-error');
+    const token = input.value.trim();
+    errEl.classList.remove('visible');
+    input.classList.remove('error');
+    if (!token) { input.classList.add('error'); return; }
+    const btn = document.querySelector('#manual-login-card .btn:not(.login-back)');
+    btn.disabled = true; btn.textContent = 'Connecting…';
+    try {
+      const res = await fetch('/auth/manual', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token }) });
+      const data = await res.json();
+      if (res.ok) { window.location.href = '/'; return; }
+      errEl.textContent = data.error || 'Authentication failed.';
+      errEl.classList.add('visible');
+      input.classList.add('error');
+    } catch(e) {
+      errEl.textContent = 'Connection error. Please try again.';
+      errEl.classList.add('visible');
+    }
+    btn.disabled = false; btn.textContent = 'Connect';
+  }
 
   const res = await fetch('/me');
   const data = await res.json();
