@@ -108,7 +108,8 @@
 
   /* Planner sidebar */
   #app-body { display: flex; align-items: flex-start; }
-  #research-main { flex: 1; min-width: 0; padding: 20px 24px; }
+  #research-main  { flex: 1; min-width: 0; padding: 20px 24px; }
+  #buildings-main { flex: 1; min-width: 0; padding: 20px 24px; display: none; }
   #planner-sidebar {
     width: 320px; flex-shrink: 0;
     background: var(--panel); border-left: 1px solid var(--border);
@@ -376,7 +377,7 @@
 </div>
 
 <div id="app-body">
-<div id="buildings-main" style="display:none;flex:1;min-width:0;padding:20px 24px;">
+<div id="buildings-main">
   <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;">
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
       <input id="b-search" type="text" placeholder="Search buildings…" oninput="applyBuildings()"
@@ -1336,7 +1337,7 @@ function loadBuildPlan() {
 function setMainTab(tab) {
   activeMainTab = tab;
   document.getElementById('research-main').style.display  = tab === 'research'  ? '' : 'none';
-  document.getElementById('buildings-main').style.display = tab === 'buildings' ? 'flex' : 'none';
+  document.getElementById('buildings-main').style.display = tab === 'buildings' ? 'block' : 'none';
   document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'buildings' && planetContext.planetId) applyBuildings();
