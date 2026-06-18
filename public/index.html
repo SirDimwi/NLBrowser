@@ -602,7 +602,7 @@ function renderResourceBar() {
     { key:'bioExtract',  icon:'🌿', color:'#4ade80', label:'Bio Extract' },
     { key:'darkMatter',  icon:'🌑', color:'#94a3b8', label:'Dark Matter' },
     { key:'antimatter',  icon:'⚡', color:'#f472b6', label:'Antimatter' },
-  ].filter(r => (res[r.key] > 0) || (rates[r.key] > 0));
+  ];
 
   const mainChips = main.map(r =>
     `<span class="res-chip"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span></span>`
