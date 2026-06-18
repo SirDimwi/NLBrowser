@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Privacy Policy — Nexus Legacy Dashboard</title>
+<title>Privacy Policy — NL Browser</title>
 <style>
   body { max-width: 700px; margin: 60px auto; font-family: system-ui, sans-serif; line-height: 1.7; color: #e2e8f0; background: #0a0d14; padding: 0 24px 80px; }
   h1 { color: #06b6d4; margin-bottom: 8px; }
@@ -16,28 +16,41 @@
 <h1>Privacy Policy</h1>
 <p class="updated">Last updated: June 2026</p>
 
-<p>Nexus Legacy Dashboard is a personal companion tool for the browser game <a href="https://nexuslegacy.space">Nexus Legacy</a>. This policy explains what data we access and how we handle it.</p>
+<p>NL Browser is a companion research tool for the browser game <a href="https://nexuslegacy.space">Nexus Legacy</a>. This policy explains what data we access and how we handle it.</p>
 
 <h2>What data we access</h2>
 <p>The Chrome extension reads the <code>nexus_token</code> cookie from <code>nexuslegacy.space</code>. This cookie is a session token issued by Nexus Legacy when you log in. It is used solely to authenticate requests to the Nexus Legacy API on your behalf.</p>
 
 <h2>How we use your data</h2>
 <ul>
-  <li>Your session token is sent to the dashboard server and stored in a temporary server-side session.</li>
-  <li>The token is used to fetch your in-game data (fleet, research, planet resources, reports) from the Nexus Legacy API.</li>
+  <li>Your session token is sent to the NL Browser server and stored in a temporary server-side session.</li>
+  <li>The token is used to fetch your in-game research data from the Nexus Legacy API.</li>
   <li>We do not share your token or any personal data with third parties.</li>
   <li>We do not sell, rent, or trade your data.</li>
   <li>Your session expires after 7 days or when you log out.</li>
 </ul>
 
+<h2>Optional usage analytics</h2>
+<p>On first login you will be asked whether to allow anonymous usage analytics. If you accept, NL Browser records:</p>
+<ul>
+  <li>That you logged in on a given day (used for DAU/MAU counts — always recorded regardless of consent)</li>
+  <li>Which view mode you use (cards, columns, table)</li>
+  <li>Whether you use the Research Planner</li>
+  <li>Approximate session duration and whether you immediately left</li>
+</ul>
+<p>No game data, chat, or personal information is included in any of the above. If you decline, none of the optional analytics are recorded. You can change your preference by clearing your browser's local storage for this site.</p>
+
+<h2>Suggestions</h2>
+<p>If you submit a suggestion via the suggestion box, the text is stored along with your in-game username (if you accepted analytics) or anonymously (if you declined). Suggestions are never shared publicly.</p>
+
 <h2>Data storage</h2>
-<p>No personal data is stored permanently. Session data is held in memory and discarded when you log out or the session expires. The optional Export feature writes a JSON snapshot to your local machine only.</p>
+<p>Session data is held in memory and discarded when you log out or the session expires. Anonymous usage counts are stored in a private Upstash Redis database and automatically deleted after 35 days.</p>
 
 <h2>Third-party services</h2>
-<p>This tool communicates exclusively with <code>nexuslegacy.space</code> APIs. No analytics, tracking, or advertising services are used.</p>
+<p>NL Browser communicates with <code>nexuslegacy.space</code> APIs to fetch your game data, and uses <a href="https://upstash.com">Upstash Redis</a> for anonymous usage storage. No advertising or tracking services are used.</p>
 
 <h2>Your rights</h2>
-<p>You can log out at any time via the extension popup or the dashboard, which immediately destroys your session. You can also revoke the extension's access by uninstalling it from Chrome.</p>
+<p>You can log out at any time via the extension popup or the app, which immediately destroys your session. You can revoke the extension's access by uninstalling it from Chrome. To opt out of analytics, click Decline on the consent banner (clear local storage to see it again).</p>
 
 <h2>Contact</h2>
 <p>For questions about this policy, please open an issue on the project repository.</p>
