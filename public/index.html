@@ -496,7 +496,7 @@
     <div id="planner-totals-top" style="display:none;border-bottom:1px solid var(--border);padding:10px 16px;">
       <div id="totals-body-top"></div>
     </div>
-    <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
+    <div id="research-plan-howto" style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
       <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
       Each item represents <strong style="color:var(--text)">one level</strong> of a research. Costs are computed from the game's base cost and your current bonuses. Use <strong style="color:var(--text)">+ Add remaining</strong> to queue all remaining levels at once.<br><br>
       <strong style="color:var(--yellow)">⚠ Note</strong><br>
@@ -516,7 +516,7 @@
     <div id="build-planner-totals-top" style="display:none;border-bottom:1px solid var(--border);padding:10px 16px;">
       <div id="build-totals-body-top"></div>
     </div>
-    <div style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
+    <div id="build-plan-howto" style="background:#0f1929;border-bottom:1px solid var(--border);padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.6;">
       <strong style="color:var(--text);display:block;margin-bottom:4px;">How this works</strong>
       Each item represents <strong style="color:var(--text)">one upgrade</strong> of a building. Costs are computed from the game's formula using your current level.<br><br>
       <strong style="color:var(--yellow)">⚠ Note</strong><br>
@@ -1249,6 +1249,7 @@ function renderPlanner() {
   const itemsEl = document.getElementById('planner-items');
   const totalsEl = document.getElementById('planner-totals');
 
+  document.getElementById('research-plan-howto').style.display = plan.length ? 'none' : '';
   if (!plan.length) {
     itemsEl.innerHTML = '<div class="plan-empty">Add research items using the + button</div>';
     totalsEl.style.display = 'none';
@@ -1738,6 +1739,7 @@ function renderBuildPlanner() {
   const itemsEl = document.getElementById('build-planner-items');
   const totalsEl = document.getElementById('build-planner-totals');
 
+  document.getElementById('build-plan-howto').style.display = buildPlan.length ? 'none' : '';
   if (!buildPlan.length) {
     itemsEl.innerHTML = '<div class="plan-empty">Add buildings using the + button</div>';
     totalsEl.style.display = 'none';
