@@ -566,10 +566,10 @@
 
   <!-- Planner tabs -->
   <div class="planner-tabs" id="planner-tabs-row">
-    <button class="planner-tab active" id="ptab-research"  onclick="setPlannerTab('research',true)">Research</button>
-    <button class="planner-tab"        id="ptab-buildings" onclick="setPlannerTab('buildings',true)">Buildings</button>
-    <button class="planner-tab"        id="ptab-combined"  onclick="setPlannerTab('combined',true)">Combined</button>
-    <button id="planner-pin-btn" onclick="togglePlannerPin()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;flex-shrink:0;align-self:center;margin-right:8px;white-space:nowrap;cursor:default;transition:color .15s,border-color .15s;">⇄ Following tab</button>
+    <button class="planner-tab active" id="ptab-research"  onclick="setPlannerTab('research')">Research</button>
+    <button class="planner-tab"        id="ptab-buildings" onclick="setPlannerTab('buildings')">Buildings</button>
+    <button class="planner-tab"        id="ptab-combined"  onclick="setPlannerTab('combined')">Combined</button>
+    <button id="planner-clear-btn" onclick="clearActivePlan()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;flex-shrink:0;align-self:center;margin-right:8px;cursor:pointer;transition:color .15s,border-color .15s;" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='';this.style.borderColor=''">Clear</button>
   </div>
 
   <!-- Research panel -->
@@ -722,6 +722,7 @@ function commitPlanRename() {
 }
 
 function createNewPlan() {
+  pruneEmptyActivePlan();
   const p = { id: String(Date.now()), name: generatePlanName(), research: [], buildings: [], updatedAt: new Date().toISOString() };
   savedPlans.push(p);
   activePlanId = p.id;
@@ -737,8 +738,10 @@ function createNewPlan() {
 }
 
 function loadSavedPlan(id) {
+  if (id === activePlanId) { hidePlanOverlays(); return; }
+  pruneEmptyActivePlan();
   const p = savedPlans.find(p => p.id === id);
-  if (!p) return;
+  if (!p) { renderPlansList(); return; }
   activePlanId = id;
   plan      = p.research  || [];
   buildPlan = p.buildings || [];
@@ -1514,6 +1517,7 @@ function addToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r || planFull(r)) return;
 
+  confirmPlannerTabForAdd('research');
   const idx = buildResearchIndex();
   const prereqs = resolvePrereqChain(r, idx);
   const alreadyQueued = new Set(plan.map(p => p.key));
@@ -1528,8 +1532,7 @@ function addToPlan(researchId) {
 
   const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
   if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
-  promoteToComboIfNeeded('research');
-  if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined', true);
+  if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined');
   if (!plannerOpen) togglePlanner();
   renderPlanner();
   renderBuildPlanner();
@@ -1547,6 +1550,7 @@ function addAllToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r) return;
 
+  confirmPlannerTabForAdd('research');
   const idx = buildResearchIndex();
   const prereqs = resolvePrereqChain(r, idx);
   const alreadyQueued = new Set(plan.map(p => p.key));
@@ -1567,8 +1571,7 @@ function addAllToPlan(researchId) {
   if (added || toAdd.length) {
     if (toAdd.length) showToast(`Added "${r.name}" (all levels) + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
     const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
-    promoteToComboIfNeeded('research');
-    if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined', true);
+    if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined');
     if (!plannerOpen) togglePlanner();
     renderPlanner();
     if (bAdded > 0) renderBuildPlanner();
@@ -1688,7 +1691,6 @@ function renderPlanner() {
 let buildPlan = [];
 let activeMainTab = 'research';
 let activePlannerTab = 'research';
-let plannerPinned = false;
 let bState = { cats: new Set(), statuses: new Set(), sortKey: 'default', sortDir: 'asc', view: 'cards', search: '' };
 
 function setMainTab(tab) {
@@ -1698,48 +1700,31 @@ function setMainTab(tab) {
   document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'buildings' && planetContext.planetId) applyBuildings();
-  if (!plannerPinned && (tab === 'research' || tab === 'buildings')) setPlannerTab(tab, false);
 }
 
-function setPlannerTab(tab, pin) {
+function setPlannerTab(tab) {
   activePlannerTab = tab;
-  if (pin) plannerPinned = true;
   document.querySelectorAll('.planner-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('ptab-' + tab).classList.add('active');
   document.querySelectorAll('.planner-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('ppanel-' + tab).classList.add('active');
   document.getElementById('planner-clear-btn').style.display = tab === 'combined' ? 'none' : '';
   renderPlannerCombined();
-  updatePinBtn();
 }
 
-function updatePinBtn() {
-  const btn = document.getElementById('planner-pin-btn');
-  if (!btn) return;
-  if (plannerPinned) {
-    btn.textContent = '📌 Pinned — click to unpin';
-    btn.style.color = 'var(--accent2)';
-    btn.style.borderColor = 'var(--accent2)';
-    btn.style.cursor = 'pointer';
-  } else {
-    btn.textContent = '⇄ Following tab';
-    btn.style.color = '';
-    btn.style.borderColor = '';
-    btn.style.cursor = 'default';
+function confirmPlannerTabForAdd(type) {
+  if (activePlannerTab === 'combined' || activePlannerTab === type) return;
+  if (confirm('Convert to a combined plan?')) setPlannerTab('combined');
+  else setPlannerTab(type);
+}
+
+function pruneEmptyActivePlan() {
+  saveActivePlan();
+  const p = savedPlans.find(p => p.id === activePlanId);
+  if (p && (p.research?.length || 0) === 0 && (p.buildings?.length || 0) === 0) {
+    savedPlans = savedPlans.filter(sp => sp.id !== activePlanId);
+    persistPlans();
   }
-}
-
-function togglePlannerPin() {
-  if (!plannerPinned) return;
-  plannerPinned = false;
-  if (activeMainTab === 'research' || activeMainTab === 'buildings') setPlannerTab(activeMainTab, false);
-  else updatePinBtn();
-}
-
-function promoteToComboIfNeeded(type) {
-  if (!plannerPinned) return;
-  if (activePlannerTab === 'combined') return;
-  if (activePlannerTab !== type) setPlannerTab('combined', true);
 }
 
 function addBuildingPrereqsForResearch(researchItems) {
@@ -1869,10 +1854,9 @@ function addToBuildPlan(key) {
   if (!b) return;
   const lvl = bNextPlanLevel(b);
   if (b.maxLevel > 0 && lvl > b.maxLevel) return;
+  confirmPlannerTabForAdd('buildings');
   buildPlan.push(makeBuildPlanItem(b, lvl));
-  promoteToComboIfNeeded('buildings');
   if (!plannerOpen) togglePlanner();
-  if (activePlannerTab !== 'combined') setPlannerTab('buildings', false);
   renderBuildPlanner();
   applyBuildings();
 }
@@ -1880,6 +1864,7 @@ function addToBuildPlan(key) {
 function addAllToBuildPlan(key) {
   const b = (planetContext.buildings || {})[key];
   if (!b || !b.maxLevel) return;
+  confirmPlannerTabForAdd('buildings');
   let added = 0;
   while (true) {
     const lvl = bNextPlanLevel(b);
@@ -1888,9 +1873,7 @@ function addAllToBuildPlan(key) {
     added++;
   }
   if (added) {
-    promoteToComboIfNeeded('buildings');
     if (!plannerOpen) togglePlanner();
-    if (activePlannerTab !== 'combined') setPlannerTab('buildings', false);
     renderBuildPlanner();
     applyBuildings();
   }
@@ -2439,8 +2422,7 @@ const PATCH_NOTES = [
     version: '1.0.10',
     date: '2026-06-18',
     notes: [
-      'Firefox extension — NL Browser is now available for Firefox via AMO',
-      'Privacy policy updated to be browser-agnostic',
+      'Firefox extension build prepared — Firefox support coming soon (pending AMO review)',
       'Extension popup uses safe DOM construction instead of innerHTML',
     ],
   },
@@ -2501,16 +2483,6 @@ const PATCH_NOTES = [
   {
     version: '1.0.4',
     date: '2026-06-12',
-    notes: [
-      'Added suggestion box — send feature ideas directly from the app',
-      'Added patch notes viewer (you\'re looking at it)',
-      'Added extended telemetry: view preferences, planner usage, session duration, bounce rate, retention, auth health',
-      'Migrated usage tracking to Upstash Redis for persistence across deploys',
-    ],
-  },
-  {
-    version: '1.0.3',
-    date: '2026-06-17',
     notes: [
       'Added suggestion box — send feature ideas directly from the app',
       'Added patch notes viewer (you\'re looking at it)',
