@@ -132,8 +132,6 @@
   .plan-item-meta { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
   .plan-item-costs { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; }
   .planner-totals { border-top: 1px solid var(--border); padding: 14px 16px 28px; flex-shrink: 0; }
-  #combine-prompt-panel { display:none; flex:1; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
-  #combine-prompt-panel.visible { display:flex; }
   .planner-totals h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 10px; }
   .total-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
   .total-row:last-child { margin-bottom: 0; }
@@ -579,18 +577,6 @@
     </div>
   </div>
 
-  <!-- Combine prompt panel -->
-  <div id="combine-prompt-panel">
-    <div style="text-align:center;width:100%;">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--accent2);margin-bottom:12px;">Add to Plan</div>
-      <div id="combine-prompt-msg" style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:6px;"></div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:28px;">You already have items in the other plan type.</div>
-      <button onclick="resolveCombinePrompt(true)" style="width:100%;background:var(--accent2);border:none;color:#000;font-size:14px;font-weight:700;padding:14px;border-radius:8px;cursor:pointer;margin-bottom:10px;">Combine into one plan</button>
-      <button onclick="resolveCombinePrompt(false)" style="width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-size:13px;padding:10px;border-radius:8px;cursor:pointer;margin-bottom:10px;">Keep separate, switch tab</button>
-      <button onclick="resolveCombinePrompt(null)" style="width:100%;background:none;border:none;color:var(--muted);font-size:12px;padding:6px;cursor:pointer;">Cancel</button>
-    </div>
-  </div>
-
   <!-- Planner tabs -->
   <div class="planner-tabs" id="planner-tabs-row">
     <button class="planner-tab active" id="ptab-research"  onclick="setPlannerTab('research')">Research</button>
@@ -798,8 +784,6 @@ function togglePlansPanel() {
 function hidePlanOverlays() {
   document.getElementById('plans-panel').classList.remove('visible');
   document.getElementById('delete-confirm-panel').classList.remove('visible');
-  document.getElementById('combine-prompt-panel').classList.remove('visible');
-  _combineYes = _combineNo = null;
   document.getElementById('planner-tabs-row').style.display = '';
   document.querySelectorAll('.planner-panel').forEach(p => p.style.display = '');
   document.querySelectorAll('.planner-panel:not(.active)').forEach(p => p.style.display = 'none');
@@ -1565,22 +1549,20 @@ function addToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r || planFull(r)) return;
 
-  confirmPlannerTabForAdd('research', () => {
-    const idx = buildResearchIndex();
-    const prereqs = resolvePrereqChain(r, idx);
-    const alreadyQueued = new Set(plan.map(p => p.key));
-    const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
-    for (const dep of toAdd) plan.push(makePlanItem(dep, nextPlanLevel(dep)));
-    plan.push(makePlanItem(r, nextPlanLevel(r)));
-    if (toAdd.length) showToast(`Added "${r.name}" + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
-    const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
-    if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
-    if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined');
-    if (!plannerOpen) togglePlanner();
-    renderPlanner();
-    renderBuildPlanner();
-    applyResearch();
-  });
+  const idx = buildResearchIndex();
+  const prereqs = resolvePrereqChain(r, idx);
+  const alreadyQueued = new Set(plan.map(p => p.key));
+  const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
+  for (const dep of toAdd) plan.push(makePlanItem(dep, nextPlanLevel(dep)));
+  plan.push(makePlanItem(r, nextPlanLevel(r)));
+  if (toAdd.length) showToast(`Added "${r.name}" + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
+  const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
+  if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
+  setPlannerTab(bAdded > 0 ? 'combined' : 'research');
+  if (!plannerOpen) togglePlanner();
+  renderPlanner();
+  renderBuildPlanner();
+  applyResearch();
 }
 
 function toggleLevels(btn) {
@@ -1594,29 +1576,27 @@ function addAllToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r) return;
 
-  confirmPlannerTabForAdd('research', () => {
-    const idx = buildResearchIndex();
-    const prereqs = resolvePrereqChain(r, idx);
-    const alreadyQueued = new Set(plan.map(p => p.key));
-    const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
-    for (const dep of toAdd) plan.push(makePlanItem(dep, nextPlanLevel(dep)));
-    let added = 0;
-    while (!planFull(r)) {
-      const lvl = nextPlanLevel(r);
-      if (lvl > r.maxLevel) break;
-      plan.push(makePlanItem(r, lvl));
-      added++;
-    }
-    if (added || toAdd.length) {
-      if (toAdd.length) showToast(`Added "${r.name}" (all levels) + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
-      const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
-      if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined');
-      if (!plannerOpen) togglePlanner();
-      renderPlanner();
-      if (bAdded > 0) renderBuildPlanner();
-      applyResearch();
-    }
-  });
+  const idx = buildResearchIndex();
+  const prereqs = resolvePrereqChain(r, idx);
+  const alreadyQueued = new Set(plan.map(p => p.key));
+  const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
+  for (const dep of toAdd) plan.push(makePlanItem(dep, nextPlanLevel(dep)));
+  let added = 0;
+  while (!planFull(r)) {
+    const lvl = nextPlanLevel(r);
+    if (lvl > r.maxLevel) break;
+    plan.push(makePlanItem(r, lvl));
+    added++;
+  }
+  if (added || toAdd.length) {
+    if (toAdd.length) showToast(`Added "${r.name}" (all levels) + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
+    const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
+    setPlannerTab(bAdded > 0 ? 'combined' : 'research');
+    if (!plannerOpen) togglePlanner();
+    renderPlanner();
+    renderBuildPlanner();
+    applyResearch();
+  }
 }
 
 function removeFromPlan(uid) {
@@ -1752,31 +1732,6 @@ function setPlannerTab(tab) {
   renderPlannerCombined();
 }
 
-let _combineYes = null, _combineNo = null;
-
-function confirmPlannerTabForAdd(type, callback) {
-  if (activePlannerTab === 'combined' || activePlannerTab === type) { callback(); return; }
-  const conflictHasItems = type === 'research' ? buildPlan.length > 0 : plan.length > 0;
-  if (!conflictHasItems) { setPlannerTab(type); callback(); return; }
-  const label = type === 'research' ? 'Add Research' : 'Add Building';
-  document.getElementById('combine-prompt-msg').textContent = label;
-  _combineYes = () => { setPlannerTab('combined'); callback(); };
-  _combineNo  = () => { setPlannerTab(type);      callback(); };
-  document.getElementById('combine-prompt-panel').classList.add('visible');
-  document.getElementById('planner-tabs-row').style.display = 'none';
-  document.querySelectorAll('.planner-panel').forEach(p => p.style.display = 'none');
-  if (!plannerOpen) togglePlanner();
-}
-
-function resolveCombinePrompt(choice) {
-  document.getElementById('combine-prompt-panel').classList.remove('visible');
-  document.getElementById('planner-tabs-row').style.display = '';
-  document.querySelectorAll('.planner-panel').forEach(p => p.style.display = '');
-  document.querySelectorAll('.planner-panel:not(.active)').forEach(p => p.style.display = 'none');
-  if (choice === true  && _combineYes) _combineYes();
-  if (choice === false && _combineNo)  _combineNo();
-  _combineYes = _combineNo = null;
-}
 
 function pruneEmptyActivePlan() {
   saveActivePlan();
@@ -1914,31 +1869,29 @@ function addToBuildPlan(key) {
   if (!b) return;
   const lvl = bNextPlanLevel(b);
   if (b.maxLevel > 0 && lvl > b.maxLevel) return;
-  confirmPlannerTabForAdd('buildings', () => {
-    buildPlan.push(makeBuildPlanItem(b, lvl));
-    if (!plannerOpen) togglePlanner();
-    renderBuildPlanner();
-    applyBuildings();
-  });
+  buildPlan.push(makeBuildPlanItem(b, lvl));
+  setPlannerTab('buildings');
+  if (!plannerOpen) togglePlanner();
+  renderBuildPlanner();
+  applyBuildings();
 }
 
 function addAllToBuildPlan(key) {
   const b = (planetContext.buildings || {})[key];
   if (!b || !b.maxLevel) return;
-  confirmPlannerTabForAdd('buildings', () => {
-    let added = 0;
-    while (true) {
-      const lvl = bNextPlanLevel(b);
-      if (lvl > b.maxLevel) break;
-      buildPlan.push(makeBuildPlanItem(b, lvl));
-      added++;
-    }
-    if (added) {
-      if (!plannerOpen) togglePlanner();
-      renderBuildPlanner();
-      applyBuildings();
-    }
-  });
+  let added = 0;
+  while (true) {
+    const lvl = bNextPlanLevel(b);
+    if (lvl > b.maxLevel) break;
+    buildPlan.push(makeBuildPlanItem(b, lvl));
+    added++;
+  }
+  if (added) {
+    setPlannerTab('buildings');
+    if (!plannerOpen) togglePlanner();
+    renderBuildPlanner();
+    applyBuildings();
+  }
 }
 
 function removeFromBuildPlan(uid) {
