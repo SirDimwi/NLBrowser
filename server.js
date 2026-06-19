@@ -521,6 +521,20 @@ app.get('/debug/speed-effects', requireAuth, async (req, res) => {
   }
 });
 
+// ── Guest catalogue ───────────────────────────────────────────────────────────
+
+let catalogueCache = null;
+app.get('/catalogue', (req, res) => {
+  if (!catalogueCache) {
+    const p = path.join(__dirname, 'public', 'catalogue.json');
+    if (!fs.existsSync(p)) return res.status(503).json({ error: 'Catalogue not available' });
+    catalogueCache = fs.readFileSync(p, 'utf8');
+  }
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(catalogueCache);
+});
+
 // ── Share links ───────────────────────────────────────────────────────────────
 
 function planSlug(json) {

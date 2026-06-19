@@ -371,20 +371,26 @@
 <header>
   <h1>NL BROWSER</h1>
   <div style="display:flex;align-items:center;gap:10px;">
-    <div class="user-chip">
-      <strong id="header-username"></strong>
-      <span id="header-universe"></span>
+    <div id="authed-header-area" style="display:flex;align-items:center;gap:10px;">
+      <div class="user-chip">
+        <strong id="header-username"></strong>
+        <span id="header-universe"></span>
+      </div>
+      <select id="planet-selector" class="refresh-btn" onchange="selectPlanet(this.value)" style="cursor:pointer;max-width:180px;" title="Active planet">
+        <option value="">Loading planets…</option>
+      </select>
+      <span class="last-updated" id="last-updated">—</span>
     </div>
-    <select id="planet-selector" class="refresh-btn" onchange="selectPlanet(this.value)" style="cursor:pointer;max-width:180px;" title="Active planet">
-      <option value="">Loading planets…</option>
-    </select>
-    <span class="last-updated" id="last-updated">—</span>
+    <div id="guest-header-area" style="display:none;align-items:center;gap:8px;">
+      <span style="font-size:13px;color:var(--muted);font-weight:600;">Guest</span>
+      <button onclick="showLoginScreen()" style="background:none;border:1px solid var(--accent2);color:var(--accent2);font-size:12px;padding:4px 12px;border-radius:6px;cursor:pointer;">Log in</button>
+    </div>
     <button class="version-btn" onclick="openPatchNotes()" title="Patch notes">v<span id="app-version"></span></button>
-    <button class="refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
+    <button class="refresh-btn" id="header-refresh-btn" onclick="refreshAll()">⟳ Refresh</button>
     <button class="planner-toggle" id="planner-toggle" onclick="togglePlanner()">📋 Planner <span id="planner-count"></span></button>
     <button class="refresh-btn" id="export-btn" onclick="exportData()" title="Export all game data as JSON">⬇ Export</button>
-    <button class="refresh-btn" onclick="openSuggest()" style="border-color:var(--accent2);color:var(--accent2);" title="Suggest a feature">💡 Request a Feature</button>
-    <button class="refresh-btn" onclick="logout()" style="color:var(--muted);">Log Out</button>
+    <button class="refresh-btn" id="suggest-btn" onclick="openSuggest()" style="border-color:var(--accent2);color:var(--accent2);" title="Suggest a feature">💡 Request a Feature</button>
+    <button class="refresh-btn" id="logout-btn" onclick="logout()" style="color:var(--muted);">Log Out</button>
   </div>
 </header>
 
@@ -397,6 +403,10 @@
     <button class="modal-cancel" style="font-size:12px;padding:5px 14px;" onclick="dismissConsent(false)">Decline</button>
     <button class="consent-ok" onclick="dismissConsent(true)">Accept</button>
   </div>
+</div>
+
+<div id="guest-banner" style="display:none;background:#0d1f0f;border-bottom:1px solid #1a3a1f;padding:8px 16px;font-size:12px;color:#6abf7a;text-align:center;">
+  Viewing default rates — <a onclick="showLoginScreen()" style="color:var(--accent2);cursor:pointer;text-decoration:underline;">log in</a> to see your own costs and live data.
 </div>
 
 <div id="main-tabs">
@@ -617,6 +627,7 @@ const VERSION = '1.1.0';
 let researchData = [];
 let refreshTimer = null;
 let plan = [];
+let isGuest = false;
 let plannerOpen = false;
 
 // ── Plan management ───────────────────────────────────────────────────────────
@@ -831,6 +842,11 @@ function openShareModal() {
   document.getElementById('share-import-input').value = '';
   document.getElementById('share-text-format').value = 'plain';
   refreshShareText();
+  if (isGuest) {
+    linkBtn.style.display = 'none';
+    document.getElementById('share-link-status').style.color = 'var(--muted)';
+    document.getElementById('share-link-status').textContent = 'Log in to create a share link.';
+  }
   document.getElementById('share-modal-backdrop').classList.remove('hidden');
 }
 
@@ -2412,6 +2428,37 @@ async function submitManualLogin() {
   btn.disabled = false; btn.textContent = 'Connect';
 }
 
+function showLoginScreen() {
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('login-screen').classList.add('visible');
+}
+
+async function enterGuestMode() {
+  isGuest = true;
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('authed-header-area').style.display = 'none';
+  document.getElementById('guest-header-area').style.display = 'flex';
+  document.getElementById('header-refresh-btn').style.display = 'none';
+  document.getElementById('export-btn').style.display = 'none';
+  document.getElementById('suggest-btn').style.display = 'none';
+  document.getElementById('logout-btn').style.display = 'none';
+  document.getElementById('guest-banner').style.display = '';
+  document.getElementById('app-version').textContent = VERSION;
+
+  try {
+    const res = await fetch('/catalogue');
+    const cat = await res.json();
+    researchData = cat.research || [];
+    planetContext.buildings = cat.buildings || {};
+  } catch {
+    showToast('Could not load catalogue — some data may be unavailable.');
+  }
+
+  initPlans();
+  applyResearch();
+  if (activeMainTab === 'buildings') applyBuildings();
+}
+
 async function boot() {
   const params = new URLSearchParams(location.search);
   const err = params.get('error');
@@ -2420,7 +2467,6 @@ async function boot() {
   const data = await res.json();
 
   if (!data.authenticated) {
-    document.getElementById('login-screen').classList.add('visible');
     if (err) {
       const msgs = {
         missing_token: 'No token provided.',
@@ -2430,7 +2476,11 @@ async function boot() {
       const el = document.getElementById('login-error');
       el.textContent = msgs[err] || 'Authentication failed.';
       el.classList.add('visible');
+      document.getElementById('login-screen').classList.add('visible');
+      return;
     }
+    await enterGuestMode();
+    await maybeLoadSharedPlan(params);
     return;
   }
 
