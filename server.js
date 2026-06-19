@@ -356,7 +356,7 @@ app.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/track', requireAuth, async (req, res) => {
+app.post('/track', async (req, res) => {
   const { type, view } = req.body ?? {};
   const userId = req.session.user?.userId;
   if (type === 'view' && view) {

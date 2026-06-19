@@ -2561,7 +2561,7 @@ function dismissConsent(accepted) {
 }
 
 function hasConsent() {
-  return localStorage.getItem('nlb_consent') === 'yes';
+  return isGuest || localStorage.getItem('nlb_consent') === 'yes';
 }
 
 // ── Patch notes ───────────────────────────────────────────────────────────────
