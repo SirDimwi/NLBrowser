@@ -1019,6 +1019,11 @@ function fmt(n) {
   return Math.floor(n).toLocaleString();
 }
 
+function fmtNum(n) {
+  const r = parseFloat(n.toPrecision(6));
+  return r % 1 === 0 ? r.toLocaleString() : r.toString();
+}
+
 function countdown(dateStr) {
   const diff = Math.max(0, new Date(dateStr) - Date.now());
   const h = Math.floor(diff / 3600000);
@@ -1986,13 +1991,13 @@ function bEffectsHtml(b) {
   if (b.energyPerLevel) {
     const col = b.energyPerLevel > 0 ? 'var(--yellow)' : 'var(--red)';
     const sign = b.energyPerLevel > 0 ? '+' : '';
-    parts.push(`<span style="color:${col}">${sign}${b.energyPerLevel * (b.level||1)} energy</span>`);
+    parts.push(`<span style="color:${col}">${sign}${fmtNum(b.energyPerLevel * (b.level||1))} energy</span>`);
   }
   if (b.populationPerLevel) {
-    parts.push(`<span style="color:var(--muted)">+${b.populationPerLevel * (b.level||1)} pop cap</span>`);
+    parts.push(`<span style="color:var(--muted)">+${fmtNum(b.populationPerLevel * (b.level||1))} pop cap</span>`);
   }
   if (b.populationGrowthPerLevel) {
-    parts.push(`<span style="color:var(--muted)">+${b.populationGrowthPerLevel * (b.level||1)}/s growth</span>`);
+    parts.push(`<span style="color:var(--muted)">+${fmtNum(b.populationGrowthPerLevel * (b.level||1))}/s growth</span>`);
   }
   if (b.consumptionPerLevel && b.consumptionResource) {
     const col = res[b.consumptionResource] || 'var(--muted)';
