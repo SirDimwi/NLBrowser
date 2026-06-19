@@ -1024,6 +1024,23 @@ function fmtNum(n) {
   return r % 1 === 0 ? r.toLocaleString() : r.toString();
 }
 
+function computeResourceRates(buildings) {
+  const rates = {};
+  for (const b of Object.values(buildings || {})) {
+    if (!b.level) continue;
+    if (b.productionPerLevel && b.productionResource) {
+      rates[b.productionResource] = (rates[b.productionResource] || 0) + b.productionPerLevel * b.level;
+    }
+    if (b.consumptionPerLevel && b.consumptionResource) {
+      rates[b.consumptionResource] = (rates[b.consumptionResource] || 0) - b.consumptionPerLevel * b.level;
+    }
+    if (b.consumptionPerLevel2 && b.consumptionResource2) {
+      rates[b.consumptionResource2] = (rates[b.consumptionResource2] || 0) - b.consumptionPerLevel2 * b.level;
+    }
+  }
+  return rates;
+}
+
 function countdown(dateStr) {
   const diff = Math.max(0, new Date(dateStr) - Date.now());
   const h = Math.floor(diff / 3600000);
@@ -1178,9 +1195,14 @@ function renderResourceBar() {
     { key:'antimatter',  icon:'⚡', color:'#f472b6', label:'Antimatter' },
   ];
 
-  const mainChips = main.map(r =>
-    `<span class="res-chip" title="${r.label}"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span></span>`
-  ).join('');
+  const bldRates = computeResourceRates(planetContext.buildings);
+  const mainChips = main.map(r => {
+    const rate = bldRates[r.key] || 0;
+    const rateHtml = rate !== 0
+      ? `<span style="color:${rate>0?'var(--green)':'var(--red)'};font-size:10px;">${rate>0?'+':''}${fmtNum(rate)}/s</span>`
+      : '';
+    return `<span class="res-chip" title="${r.label}"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span>${rateHtml}</span>`;
+  }).join('');
 
   const rareChips = rares.map(r =>
     `<span class="res-chip" title="${r.label}"><span class="res-icon" style="color:${r.color}">${r.icon}</span><span style="color:${r.color}">${fmt(res[r.key] ?? 0)}</span></span>`
@@ -2189,12 +2211,38 @@ function renderBuildPlanner() {
   const totAly = buildPlan.reduce((s,p) => s + (p.aly||0), 0);
   const totTime = buildPlan.reduce((s,p) => s + (p.time||0), 0);
 
+  const bldRateDeltas = {};
+  for (const item of buildPlan) {
+    const b = (planetContext.buildings || {})[item.key];
+    if (!b) continue;
+    const lvls = item.toLevel - item.fromLevel;
+    if (b.productionPerLevel && b.productionResource) {
+      bldRateDeltas[b.productionResource] = (bldRateDeltas[b.productionResource] || 0) + b.productionPerLevel * lvls;
+    }
+    if (b.consumptionPerLevel && b.consumptionResource) {
+      bldRateDeltas[b.consumptionResource] = (bldRateDeltas[b.consumptionResource] || 0) - b.consumptionPerLevel * lvls;
+    }
+  }
+  const rateResources = [
+    { key:'ore', icon:'⛏', color:'var(--ore)' },
+    { key:'silicates', icon:'💠', color:'var(--sil)' },
+    { key:'hydrogen', icon:'💧', color:'var(--hyd)' },
+    { key:'alloys', icon:'⚙', color:'var(--aly)' },
+  ];
+  const rateGainRows = rateResources
+    .filter(r => bldRateDeltas[r.key])
+    .map(r => {
+      const d = bldRateDeltas[r.key];
+      return `<div class="total-row"><span style="color:${r.color}">${r.icon} Production</span><span style="color:${d>0?'var(--green)':'var(--red)'}">${d>0?'+':''}${fmtNum(d)}/s</span></div>`;
+    }).join('');
+
   const totalsHtml = `
     ${totOre ? `<div class="total-row"><span style="color:var(--ore)">⛏ Ore</span><span>${fmt(totOre)}</span></div>` : ''}
     ${totSil ? `<div class="total-row"><span style="color:var(--sil)">💠 Silicates</span><span>${fmt(totSil)}</span></div>` : ''}
     ${totHyd ? `<div class="total-row"><span style="color:var(--hyd)">💧 Hydrogen</span><span>${fmt(totHyd)}</span></div>` : ''}
     ${totAly ? `<div class="total-row"><span style="color:var(--aly)">⚙ Alloys</span><span>${fmt(totAly)}</span></div>` : ''}
     <div class="total-time"><span style="color:var(--muted)">⏱ Total Time</span><span>${fmtTime(totTime)}</span></div>
+    ${rateGainRows ? `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">${rateGainRows}</div>` : ''}
   `;
 
   totalsEl.style.display = '';
@@ -2247,6 +2295,31 @@ function renderPlannerCombined() {
   const totAly  = allItems.reduce((s,p) => s + (p.aly||0), 0);
   const totTime = allItems.reduce((s,p) => s + (p.time||0), 0);
 
+  const combRateDeltas = {};
+  for (const item of buildPlan) {
+    const b = (planetContext.buildings || {})[item.key];
+    if (!b) continue;
+    const lvls = item.toLevel - item.fromLevel;
+    if (b.productionPerLevel && b.productionResource) {
+      combRateDeltas[b.productionResource] = (combRateDeltas[b.productionResource] || 0) + b.productionPerLevel * lvls;
+    }
+    if (b.consumptionPerLevel && b.consumptionResource) {
+      combRateDeltas[b.consumptionResource] = (combRateDeltas[b.consumptionResource] || 0) - b.consumptionPerLevel * lvls;
+    }
+  }
+  const combRateResources = [
+    { key:'ore', icon:'⛏', color:'var(--ore)' },
+    { key:'silicates', icon:'💠', color:'var(--sil)' },
+    { key:'hydrogen', icon:'💧', color:'var(--hyd)' },
+    { key:'alloys', icon:'⚙', color:'var(--aly)' },
+  ];
+  const combRateRows = combRateResources
+    .filter(r => combRateDeltas[r.key])
+    .map(r => {
+      const d = combRateDeltas[r.key];
+      return `<div class="total-row"><span style="color:${r.color}">${r.icon} Production</span><span style="color:${d>0?'var(--green)':'var(--red)'}">${d>0?'+':''}${fmtNum(d)}/s</span></div>`;
+    }).join('');
+
   totalsEl.style.display = '';
   document.getElementById('combined-totals-body').innerHTML = `
     ${totOre ? `<div class="total-row"><span style="color:var(--ore)">⛏ Ore</span><span>${fmt(totOre)}</span></div>` : ''}
@@ -2254,6 +2327,7 @@ function renderPlannerCombined() {
     ${totHyd ? `<div class="total-row"><span style="color:var(--hyd)">💧 Hydrogen</span><span>${fmt(totHyd)}</span></div>` : ''}
     ${totAly ? `<div class="total-row"><span style="color:var(--aly)">⚙ Alloys</span><span>${fmt(totAly)}</span></div>` : ''}
     <div class="total-time"><span style="color:var(--muted)">⏱ Total Time</span><span>${fmtTime(totTime)}</span></div>
+    ${combRateRows ? `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">${combRateRows}</div>` : ''}
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">${plan.length} research + ${buildPlan.length} building steps</div>
   `;
 }
