@@ -383,8 +383,9 @@
       <input id="b-search" type="text" placeholder="Search buildings…" oninput="applyBuildings()"
         style="flex:1;min-width:160px;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:6px;font-size:13px;outline:none;">
       <div style="display:flex;gap:4px;">
-        <button class="refresh-btn" id="b-view-cards" onclick="setBuildingView('cards')" title="Card view">▦</button>
-        <button class="refresh-btn" id="b-view-table" onclick="setBuildingView('table')" title="Table view">☰</button>
+        <button class="refresh-btn" id="b-view-cards"   onclick="setBuildingView('cards')"   title="Card view">▦</button>
+        <button class="refresh-btn" id="b-view-columns" onclick="setBuildingView('columns')" title="Column view">⫿</button>
+        <button class="refresh-btn" id="b-view-table"   onclick="setBuildingView('table')"   title="Table view">☰</button>
       </div>
       <span id="b-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
     </div>
@@ -398,7 +399,7 @@
       <button class="r-filter-btn" data-group="bcat" data-val="utility"   onclick="toggleBuildingCat('utility')"   style="--fc:var(--accent2)">Utility</button>
       <span style="width:1px;background:var(--border);height:20px;margin:0 6px;"></span>
       <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Status</span>
-      <button class="r-filter-btn active" data-group="bst" data-val="all"        onclick="toggleBuildingStatus('all')">All</button>
+      <button class="r-filter-btn active" data-group="bst" data-val="all"         onclick="toggleBuildingStatus('all')">All</button>
       <button class="r-filter-btn" data-group="bst" data-val="upgrading"  onclick="toggleBuildingStatus('upgrading')"  style="--fc:var(--green)">Upgrading</button>
       <button class="r-filter-btn" data-group="bst" data-val="built"      onclick="toggleBuildingStatus('built')"      style="--fc:var(--accent)">Built</button>
       <button class="r-filter-btn" data-group="bst" data-val="available"  onclick="toggleBuildingStatus('available')"  style="--fc:var(--yellow)">Available</button>
@@ -1334,11 +1335,7 @@ function renderPlanner() {
 let buildPlan = [];
 let activeMainTab = 'research';
 let activePlannerTab = 'research';
-let buildingView = 'cards';
-let buildingCatFilter = 'all';
-let buildingStatusFilter = 'all';
-let buildingSort = 'default';
-let buildingSearch = '';
+let bState = { cats: new Set(), statuses: new Set(), sortKey: 'default', sortDir: 'asc', view: 'cards', search: '' };
 
 function saveBuildPlan() {
   try { localStorage.setItem('nlb_build_plan', JSON.stringify(buildPlan)); } catch(e) {}
@@ -1376,27 +1373,48 @@ function clearActivePlan() {
 }
 
 function setBuildingView(v) {
-  buildingView = v;
-  document.getElementById('b-view-cards').classList.toggle('active', v === 'cards');
-  document.getElementById('b-view-table').classList.toggle('active', v === 'table');
+  bState.view = v;
+  document.getElementById('b-view-cards').style.borderColor   = v === 'cards'   ? 'var(--accent)' : '';
+  document.getElementById('b-view-columns').style.borderColor = v === 'columns' ? 'var(--accent)' : '';
+  document.getElementById('b-view-table').style.borderColor   = v === 'table'   ? 'var(--accent)' : '';
   applyBuildings();
 }
 
 function toggleBuildingCat(val) {
-  buildingCatFilter = val;
-  document.querySelectorAll('[data-group="bcat"]').forEach(b => b.classList.toggle('active', b.dataset.val === val));
+  if (val === 'all') { bState.cats.clear(); }
+  else { bState.cats.has(val) ? bState.cats.delete(val) : bState.cats.add(val); }
+  updateBuildingFilterButtons();
   applyBuildings();
 }
 
 function toggleBuildingStatus(val) {
-  buildingStatusFilter = val;
-  document.querySelectorAll('[data-group="bst"]').forEach(b => b.classList.toggle('active', b.dataset.val === val));
+  if (val === 'all') { bState.statuses.clear(); }
+  else { bState.statuses.has(val) ? bState.statuses.delete(val) : bState.statuses.add(val); }
+  updateBuildingFilterButtons();
   applyBuildings();
 }
 
-function setBuildingSort(s) {
-  buildingSort = s;
-  document.querySelectorAll('[data-bsort]').forEach(b => b.classList.toggle('active', b.dataset.bsort === s));
+function updateBuildingFilterButtons() {
+  const noC = bState.cats.size === 0;
+  document.querySelectorAll('[data-group="bcat"]').forEach(b => {
+    const v = b.dataset.val;
+    b.classList.toggle('active', v === 'all' ? noC : bState.cats.has(v));
+  });
+  const noS = bState.statuses.size === 0;
+  document.querySelectorAll('[data-group="bst"]').forEach(b => {
+    const v = b.dataset.val;
+    b.classList.toggle('active', v === 'all' ? noS : bState.statuses.has(v));
+  });
+}
+
+function setBuildingSort(key) {
+  if (bState.sortKey === key) {
+    bState.sortDir = bState.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    bState.sortKey = key;
+    bState.sortDir = 'asc';
+  }
+  document.querySelectorAll('[data-bsort]').forEach(b => b.classList.toggle('active', b.dataset.bsort === key));
   applyBuildings();
 }
 
@@ -1484,6 +1502,70 @@ function clearBuildPlan() {
   applyBuildings();
 }
 
+function renderBuildingColumns(list) {
+  const cats = [
+    { key: 'resource', label: 'Resource', color: 'var(--ore)'     },
+    { key: 'energy',   label: 'Energy',   color: 'var(--yellow)'  },
+    { key: 'military', label: 'Military', color: 'var(--red)'     },
+    { key: 'defense',  label: 'Defense',  color: 'var(--purple)'  },
+    { key: 'utility',  label: 'Utility',  color: 'var(--accent2)' },
+  ];
+  const fmtTime = (s) => {
+    const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+  return `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;align-items:start;">
+    ${cats.map(cat => {
+      const items = list.filter(b => b.category === cat.key);
+      return `<div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${cat.color};padding:8px 4px 10px;border-bottom:2px solid ${cat.color};margin-bottom:10px;">
+          ${cat.label} <span style="font-weight:400;color:var(--muted);font-size:11px;">(${items.length})</span>
+        </div>
+        ${items.length ? items.map(b => {
+          const st = bStatusOf(b);
+          const stColor = {upgrading:'var(--green)',maxed:'var(--purple)',built:'var(--accent)',available:'var(--yellow)',locked:'var(--muted)',disabled:'var(--red)'}[st]||'var(--muted)';
+          const nextLvl = (b.level||0) + 1;
+          const c = st !== 'maxed' ? bNextLevelCost(b, nextLvl) : {};
+          const progressPct = b.maxLevel ? Math.round(((b.level||0)/b.maxLevel)*100) : 0;
+          const canAdd = st !== 'maxed';
+          const canAddAll = canAdd && b.maxLevel && (b.level||0) < b.maxLevel - 1;
+          return `<div class="research-item" style="margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:4px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;">${b.name||b.key}</div>
+                ${b.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;">${b.description}</div>` : ''}
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:16px;font-weight:700;color:var(--accent2);">${b.level||0}</div>
+                ${b.maxLevel ? `<div style="font-size:10px;color:var(--muted);">/ ${b.maxLevel}</div>` : ''}
+              </div>
+            </div>
+            <div style="font-size:11px;color:${stColor};text-transform:capitalize;margin-bottom:4px;">${st}</div>
+            ${b.maxLevel ? `<div style="height:3px;background:var(--panel2);border-radius:2px;overflow:hidden;margin-bottom:6px;">
+              <div style="width:${progressPct}%;height:100%;background:${stColor};border-radius:2px;"></div>
+            </div>` : ''}
+            ${bEffectsHtml(b)}
+            ${st !== 'maxed' ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">Next: Lv${nextLvl}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;margin-bottom:6px;">
+              ${c.ore  ? `<span style="color:var(--ore)">⛏ ${fmt(c.ore)}</span>`  : ''}
+              ${c.sil  ? `<span style="color:var(--sil)">💠 ${fmt(c.sil)}</span>`  : ''}
+              ${c.hyd  ? `<span style="color:var(--hyd)">💧 ${fmt(c.hyd)}</span>`  : ''}
+              ${c.aly  ? `<span style="color:var(--aly)">⚙ ${fmt(c.aly)}</span>`  : ''}
+              ${c.time ? `<span style="color:var(--muted)">⏱ ${fmtTime(c.time)}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="refresh-btn" onclick="addToBuildPlan('${b.key}')" style="font-size:11px;padding:3px 8px;">+1</button>
+              ${canAddAll ? `<button class="refresh-btn" onclick="addAllToBuildPlan('${b.key}')" style="font-size:11px;padding:3px 8px;">+All</button>` : ''}
+            </div>` : `<div style="font-size:11px;color:var(--purple);">Max level reached</div>`}
+          </div>`;
+        }).join('') : `<div style="font-size:12px;color:var(--muted);padding:12px 0;">None</div>`}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 function bEffectsHtml(b) {
   const parts = [];
   const res = { ore:'var(--ore)', silicates:'var(--sil)', hydrogen:'var(--hyd)', alloys:'var(--aly)',
@@ -1523,11 +1605,11 @@ function bEffectsHtml(b) {
 function applyBuildings() {
   const allBuildings = planetContext.buildings || {};
   let list = Object.values(allBuildings);
-  buildingSearch = document.getElementById('b-search')?.value.toLowerCase() || '';
+  bState.search = document.getElementById('b-search')?.value.toLowerCase() || '';
 
-  if (buildingSearch) list = list.filter(b => (b.name || b.key).toLowerCase().includes(buildingSearch));
-  if (buildingCatFilter !== 'all') list = list.filter(b => b.category === buildingCatFilter);
-  if (buildingStatusFilter !== 'all') list = list.filter(b => bStatusOf(b) === buildingStatusFilter);
+  if (bState.search) list = list.filter(b => (b.name||b.key).toLowerCase().includes(bState.search) || (b.description||'').toLowerCase().includes(bState.search));
+  if (bState.cats.size > 0) list = list.filter(b => bState.cats.has(b.category));
+  if (bState.statuses.size > 0) list = list.filter(b => bState.statuses.has(bStatusOf(b)));
 
   const fmtTime = (s) => {
     const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
@@ -1537,30 +1619,24 @@ function applyBuildings() {
   };
 
   const statusOrder = { upgrading:0, built:1, available:2, locked:3, disabled:4, maxed:5 };
+  const dir = bState.sortDir === 'desc' ? -1 : 1;
 
-  if (buildingSort === 'name')      list.sort((a,b) => (a.name||a.key).localeCompare(b.name||b.key));
-  else if (buildingSort === 'level') list.sort((a,b) => (b.level||0) - (a.level||0));
-  else if (buildingSort === 'progress') list.sort((a,b) => {
-    const ap = b.maxLevel ? (a.level||0)/b.maxLevel : 0;
+  if (bState.sortKey === 'name')         list.sort((a,b) => dir * (a.name||a.key).localeCompare(b.name||b.key));
+  else if (bState.sortKey === 'level')   list.sort((a,b) => dir * ((b.level||0) - (a.level||0)));
+  else if (bState.sortKey === 'progress') list.sort((a,b) => {
+    const ap = a.maxLevel ? (a.level||0)/a.maxLevel : 0;
     const bp = b.maxLevel ? (b.level||0)/b.maxLevel : 0;
-    return bp - ap;
+    return dir * (bp - ap);
   });
-  else if (buildingSort === 'cost-ore') list.sort((a,b) => {
-    const an = bNextLevelCost(a, (a.level||0)+1).ore;
-    const bn = bNextLevelCost(b, (b.level||0)+1).ore;
-    return bn - an;
+  else if (bState.sortKey === 'cost-ore') list.sort((a,b) => {
+    return dir * (bNextLevelCost(b,(b.level||0)+1).ore - bNextLevelCost(a,(a.level||0)+1).ore);
   });
-  else if (buildingSort === 'cost-total') list.sort((a,b) => {
-    const ac = bNextLevelCost(a, (a.level||0)+1);
-    const bc = bNextLevelCost(b, (b.level||0)+1);
-    return (bc.ore+bc.sil+bc.hyd+bc.aly) - (ac.ore+ac.sil+ac.hyd+ac.aly);
+  else if (bState.sortKey === 'cost-total') list.sort((a,b) => {
+    const ac = bNextLevelCost(a,(a.level||0)+1), bc = bNextLevelCost(b,(b.level||0)+1);
+    return dir * ((bc.ore+bc.sil+bc.hyd+bc.aly) - (ac.ore+ac.sil+ac.hyd+ac.aly));
   });
-  else if (buildingSort === 'time') list.sort((a,b) => {
-    const at = bNextLevelCost(a, (a.level||0)+1).time;
-    const bt = bNextLevelCost(b, (b.level||0)+1).time;
-    return bt - at;
-  });
-  else if (buildingSort === 'category') list.sort((a,b) => (a.category||'').localeCompare(b.category||''));
+  else if (bState.sortKey === 'time')    list.sort((a,b) => dir * (bNextLevelCost(b,(b.level||0)+1).time - bNextLevelCost(a,(a.level||0)+1).time));
+  else if (bState.sortKey === 'category') list.sort((a,b) => dir * (a.category||'').localeCompare(b.category||''));
   else list.sort((a,b) => (statusOrder[bStatusOf(a)]||9) - (statusOrder[bStatusOf(b)]||9));
 
   document.getElementById('b-count').textContent = `${list.length} building${list.length !== 1 ? 's' : ''}`;
@@ -1568,7 +1644,8 @@ function applyBuildings() {
   const out = document.getElementById('buildings-output');
   if (!list.length) { out.innerHTML = '<div class="plan-empty" style="padding:32px;text-align:center;">No buildings match the current filters</div>'; return; }
 
-  if (buildingView === 'table') {
+  if (bState.view === 'columns') { out.innerHTML = renderBuildingColumns(list); return; }
+  if (bState.view === 'table') {
     out.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;">
       <thead><tr style="border-bottom:2px solid var(--border);color:var(--muted);text-align:left;">
         <th style="padding:8px 10px;">Building</th>
