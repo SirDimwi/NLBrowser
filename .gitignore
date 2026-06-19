@@ -3,3 +3,4 @@ node_modules/
 .claude/
 nexus_export.json
 usage.json
+design/

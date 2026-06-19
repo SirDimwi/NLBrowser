@@ -3,6 +3,16 @@
   "name": "NL Browser",
   "version": "1.0.0",
   "description": "Open your personal Nexus Legacy companion dashboard with one click.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "nl-browser@sirdimwit",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"],
+        "optional": []
+      }
+    }
+  },
   "permissions": ["cookies"],
   "host_permissions": [
     "https://*.nexuslegacy.space/*"

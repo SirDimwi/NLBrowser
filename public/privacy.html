@@ -14,9 +14,12 @@
 </head>
 <body>
 <h1>Privacy Policy</h1>
-<p class="updated">Last updated: June 2026</p>
+<p class="updated">Last updated: June 19, 2026</p>
 
 <p>NL Browser is a companion research tool for the browser game <a href="https://nexuslegacy.space">Nexus Legacy</a>. This policy explains what data we access and how we handle it.</p>
+
+<h2>Using NL Browser without an account</h2>
+<p>You can use NL Browser without logging in. In this mode the tool loads a public catalogue of game definitions and lets you browse the full research and building trees, build and save plans, and open shared build links — all shown at default ("level 0") values. When you are not logged in, no <code>nexus_token</code> is read, no personal or in-game data is sent to our server, and no usage analytics are recorded. Plans you create are saved only in your own browser's local storage. The sections below describe what additionally happens when you choose to log in.</p>
 
 <h2>What data we access</h2>
 <p>The Chrome extension reads the <code>nexus_token</code> cookie from <code>nexuslegacy.space</code>. This cookie is a session token issued by Nexus Legacy when you log in. It is used solely to authenticate requests to the Nexus Legacy API on your behalf.</p>
@@ -24,7 +27,8 @@
 <h2>How we use your data</h2>
 <ul>
   <li>Your session token is sent to the NL Browser server and stored in a temporary server-side session.</li>
-  <li>The token is used to fetch your in-game research data from the Nexus Legacy API.</li>
+  <li>The token is used to fetch your in-game data from the Nexus Legacy API — including research, buildings, planets, fleet and mission status, reports (survey, spy, expedition, mining, pirate), outposts, directives, wormholes, and market data.</li>
+  <li>If you use the Export feature, these are bundled into a single JSON snapshot that is downloaded directly to your device. NL Browser does not retain a copy of your export.</li>
   <li>We do not share your token or any personal data with third parties.</li>
   <li>We do not sell, rent, or trade your data.</li>
   <li>Your session expires after 7 days or when you log out.</li>
@@ -43,14 +47,17 @@
 <h2>Suggestions</h2>
 <p>If you submit a suggestion via the suggestion box, the text is stored along with your in-game username (if you accepted analytics) or anonymously (if you declined). Suggestions are never shared publicly.</p>
 
+<h2>Shared build links</h2>
+<p>When you create a share link for a plan, that plan — the research and building selections together with the plan name you chose — is stored in our Upstash Redis database and given a short link. Anyone who has the link can view the plan, so a shared link is effectively public. Shared plans are kept indefinitely (they are not automatically deleted) so that existing links keep working. No in-game data, account information, or token is included — only the plan's contents and name. Because the plan name is visible to anyone with the link, please avoid putting personal or sensitive information in plan names. Creating a share link requires being logged in; viewing one does not.</p>
+
 <h2>Data storage</h2>
-<p>Session data is held in memory and discarded when you log out or the session expires. Anonymous usage counts are stored in a private Upstash Redis database and automatically deleted after 35 days.</p>
+<p>Session data is held in memory and discarded when you log out or the session expires. Anonymous usage counts are stored in a private Upstash Redis database and automatically deleted after 35 days. Shared plans are stored in the same database and kept indefinitely so their links remain valid. As with most websites, our server and hosting provider also keep standard request logs (such as IP address and browser type) for security and reliability; these are not used for advertising or cross-site tracking.</p>
 
 <h2>Third-party services</h2>
-<p>NL Browser communicates with <code>nexuslegacy.space</code> APIs to fetch your game data, and uses <a href="https://upstash.com">Upstash Redis</a> for anonymous usage storage. No advertising or tracking services are used.</p>
+<p>NL Browser communicates with <code>nexuslegacy.space</code> APIs to fetch your game data, and uses <a href="https://upstash.com">Upstash Redis</a> to store anonymous usage counts and shared plans. No advertising or tracking services are used.</p>
 
 <h2>Your rights</h2>
-<p>You can log out at any time via the extension popup or the app, which immediately destroys your session. You can revoke the extension's access by uninstalling it from Chrome. To opt out of analytics, click Decline on the consent banner (clear local storage to see it again).</p>
+<p>You can log out at any time via the extension popup or the app, which immediately destroys your session. You can revoke the extension's access by uninstalling it from your browser. To opt out of analytics, click Decline on the consent banner (clear local storage to see it again).</p>
 
 <h2>Contact</h2>
 <p>For questions about this policy, please open an issue on the project repository.</p>

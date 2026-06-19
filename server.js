@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { createClient } = require('./client');
 
 const app = express();
@@ -355,7 +356,7 @@ app.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/track', requireAuth, async (req, res) => {
+app.post('/track', async (req, res) => {
   const { type, view } = req.body ?? {};
   const userId = req.session.user?.userId;
   if (type === 'view' && view) {
@@ -474,6 +475,105 @@ app.post('/export', requireAuth, async (req, res) => {
   }
 });
 
+// ── Debug endpoints ───────────────────────────────────────────────────────────
+
+app.get('/debug/speed-effects', requireAuth, async (req, res) => {
+  try {
+    const planetId = req.session.user?.planetId;
+    const [resData, planetData] = await Promise.all([
+      req.api.research(),
+      planetId ? req.api.planet(planetId) : Promise.resolve(null),
+    ]);
+
+    const research = resData.research || [];
+    const speedResearch = research
+      .filter(r => (r.effects || []).some(e => /speed|time/i.test(e.type)))
+      .map(r => ({
+        key: r.key, name: r.name, branch: r.branch, category: r.category,
+        level: r.level, maxLevel: r.maxLevel,
+        effects: (r.effects || []).filter(e => /speed|time/i.test(e.type)),
+      }));
+
+    const allEffectTypes = [...new Set(
+      research.flatMap(r => (r.effects || []).map(e => e.type))
+    )].sort();
+
+    const rawBuildings = Array.isArray(planetData?.buildings) ? planetData.buildings
+      : Array.isArray(planetData?.planet?.buildings) ? planetData.planet.buildings : [];
+    const speedBuildings = rawBuildings
+      .filter(b => /speed|lab|construct/i.test(b.definition?.key || '') || b.definition?.buildSpeedBonus || b.definition?.researchSpeedBonus)
+      .map(b => ({
+        key: b.definition?.key, name: b.definition?.name, level: b.level,
+        definition: b.definition,
+      }));
+
+    const p = planetData?.planet?.planet || planetData?.planet || planetData || {};
+
+    res.json({
+      buildSpeedMult: p.buildSpeedMult ?? null,
+      allResearchEffectTypes: allEffectTypes,
+      speedResearch,
+      speedBuildings,
+      rawBuildingKeys: rawBuildings.map(b => b.definition?.key).filter(Boolean),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Guest catalogue ───────────────────────────────────────────────────────────
+
+let catalogueCache = null;
+app.get('/catalogue', (req, res) => {
+  if (!catalogueCache) {
+    const p = path.join(__dirname, 'public', 'catalogue.json');
+    if (!fs.existsSync(p)) return res.status(503).json({ error: 'Catalogue not available' });
+    catalogueCache = fs.readFileSync(p, 'utf8');
+  }
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(catalogueCache);
+});
+
+// ── Share links ───────────────────────────────────────────────────────────────
+
+function planSlug(json) {
+  return crypto.createHash('sha256').update(json).digest('base64url').slice(0, 10);
+}
+const SLUG_RE = /^[A-Za-z0-9_-]{6,16}$/;
+
+app.post('/share', requireAuth, async (req, res) => {
+  const raw = req.body?.payload;
+  if (!raw || typeof raw !== 'object') return res.status(400).json({ error: 'Invalid payload' });
+
+  const n = String(raw.n || 'Plan').slice(0, 80);
+  const r = (Array.isArray(raw.r) ? raw.r : []).filter(e => Array.isArray(e) && typeof e[0]==='string' && typeof e[1]==='number').slice(0, 500);
+  const b = (Array.isArray(raw.b) ? raw.b : []).filter(e => Array.isArray(e) && typeof e[0]==='string' && typeof e[1]==='number').slice(0, 500);
+
+  if (!r.length && !b.length) return res.status(400).json({ error: 'Plan is empty' });
+
+  const payload = JSON.stringify({ v: 1, n, r, b });
+  if (payload.length > 50_000) return res.status(413).json({ error: 'Plan too large' });
+
+  const slug = planSlug(payload);
+  const result = await redisCmd('SET', `share:${slug}`, payload);
+  if (result !== 'OK') return res.status(500).json({ error: 'Storage failed' });
+
+  res.json({ slug });
+});
+
+app.get('/share/:slug', async (req, res) => {
+  const { slug } = req.params;
+  if (!SLUG_RE.test(slug)) return res.status(400).json({ error: 'Invalid link' });
+  const data = await redisCmd('GET', `share:${slug}`);
+  if (!data) return res.status(404).json({ error: 'Shared plan not found' });
+  try {
+    res.json(JSON.parse(data));
+  } catch {
+    res.status(500).json({ error: 'Corrupt plan data' });
+  }
+});
+
 // ── Suggestion box ────────────────────────────────────────────────────────────
 
 const SLUR_FILTER = [
@@ -485,7 +585,7 @@ function isFlagged(text) {
   return SLUR_FILTER.some(re => re.test(text));
 }
 
-app.post('/suggest', requireAuth, async (req, res) => {
+app.post('/suggest', async (req, res) => {
   const text = (req.body?.text ?? '').trim();
   if (!text || text.length > 500) return res.status(400).json({ error: 'Invalid suggestion' });
 
