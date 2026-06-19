@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Nexus Legacy Dashboard",
+  "name": "NL Browser",
   "version": "1.0.0",
   "description": "Open your personal Nexus Legacy companion dashboard with one click.",
   "permissions": ["cookies"],
@@ -9,7 +9,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Nexus Legacy Dashboard",
+    "default_title": "NL Browser",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

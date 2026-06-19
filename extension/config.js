@@ -1,2 +1,2 @@
-// Change this to your deployed Railway/Fly.io URL before publishing
+// Deployed NL Browser dashboard URL
 const DASHBOARD_URL = 'https://nlbrowser-production.up.railway.app';

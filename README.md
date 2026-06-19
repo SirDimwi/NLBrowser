@@ -15,7 +15,7 @@ An advanced research browser and companion tool for [Nexus Legacy](https://nexus
 1. Go to [nlbrowser-production.up.railway.app](https://nlbrowser-production.up.railway.app)
 2. Log in to [Nexus Legacy](https://www.nexuslegacy.space/lobby)
 3. Press `F12` → **Application** → **Cookies** → copy the value of `nexus_token`
-4. Click **manual login** on the NL Browser login screen and paste your token
+4. Click **Provide my own credentials** on the NL Browser login screen and paste your token
 
 ## License
 
