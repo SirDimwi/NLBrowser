@@ -1527,6 +1527,7 @@ function addToPlan(researchId) {
   if (toAdd.length) showToast(`Added "${r.name}" + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
 
   if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
+  promoteToComboIfNeeded('research');
   if (!plannerOpen) togglePlanner();
   renderPlanner();
   applyResearch();
@@ -1562,6 +1563,7 @@ function addAllToPlan(researchId) {
 
   if (added || toAdd.length) {
     if (toAdd.length) showToast(`Added "${r.name}" (all levels) + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
+    promoteToComboIfNeeded('research');
     if (!plannerOpen) togglePlanner();
     renderPlanner();
     applyResearch();
@@ -1728,6 +1730,12 @@ function togglePlannerPin() {
   else updatePinBtn();
 }
 
+function promoteToComboIfNeeded(type) {
+  if (!plannerPinned) return;
+  if (activePlannerTab === 'combined') return;
+  if (activePlannerTab !== type) setPlannerTab('combined', true);
+}
+
 function clearActivePlan() {
   if (activePlannerTab === 'research') clearPlan();
   else if (activePlannerTab === 'buildings') clearBuildPlan();
@@ -1827,8 +1835,9 @@ function addToBuildPlan(key) {
   const lvl = bNextPlanLevel(b);
   if (b.maxLevel > 0 && lvl > b.maxLevel) return;
   buildPlan.push(makeBuildPlanItem(b, lvl));
+  promoteToComboIfNeeded('buildings');
   if (!plannerOpen) togglePlanner();
-  setPlannerTab('buildings');
+  if (activePlannerTab !== 'combined') setPlannerTab('buildings', false);
   renderBuildPlanner();
   applyBuildings();
 }
@@ -1844,8 +1853,9 @@ function addAllToBuildPlan(key) {
     added++;
   }
   if (added) {
+    promoteToComboIfNeeded('buildings');
     if (!plannerOpen) togglePlanner();
-    setPlannerTab('buildings');
+    if (activePlannerTab !== 'combined') setPlannerTab('buildings', false);
     renderBuildPlanner();
     applyBuildings();
   }
