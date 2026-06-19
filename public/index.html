@@ -245,6 +245,7 @@
 <!-- Login screen -->
 <div id="login-screen">
   <div class="login-card login-card-main">
+    <button id="login-back-btn" class="login-back" onclick="hideLoginScreen()" style="display:none;">← Back</button>
     <div class="login-logo">NEXUS LEGACY</div>
     <div class="login-sub">Research Browser</div>
 
@@ -2430,7 +2431,13 @@ async function submitManualLogin() {
 
 function showLoginScreen() {
   document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('login-back-btn').style.display = isGuest ? '' : 'none';
   document.getElementById('login-screen').classList.add('visible');
+}
+
+function hideLoginScreen() {
+  document.getElementById('login-screen').classList.remove('visible');
+  document.getElementById('dashboard').style.display = 'block';
 }
 
 async function enterGuestMode() {
