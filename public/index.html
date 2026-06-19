@@ -560,7 +560,7 @@
 </div>
 
 <!-- Planner sidebar -->
-<div id="planner-sidebar" class="collapsed">
+<div id="planner-sidebar">
   <div class="planner-header" style="flex-direction:column;gap:10px;align-items:stretch;padding:12px 14px;">
     <div style="display:flex;align-items:center;gap:8px;">
       <input id="plan-name-input" class="plan-name-input" type="text" value="" onblur="commitPlanRename()" onkeydown="if(event.key==='Enter')this.blur()">
@@ -628,7 +628,7 @@ let researchData = [];
 let refreshTimer = null;
 let plan = [];
 let isGuest = false;
-let plannerOpen = false;
+let plannerOpen = true;
 
 // ── Plan management ───────────────────────────────────────────────────────────
 
