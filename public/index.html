@@ -1526,10 +1526,13 @@ function addToPlan(researchId) {
 
   if (toAdd.length) showToast(`Added "${r.name}" + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
 
+  const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
   if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
   promoteToComboIfNeeded('research');
+  if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined', true);
   if (!plannerOpen) togglePlanner();
   renderPlanner();
+  renderBuildPlanner();
   applyResearch();
 }
 
@@ -1563,9 +1566,12 @@ function addAllToPlan(researchId) {
 
   if (added || toAdd.length) {
     if (toAdd.length) showToast(`Added "${r.name}" (all levels) + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
+    const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
     promoteToComboIfNeeded('research');
+    if (bAdded > 0 && activePlannerTab !== 'combined') setPlannerTab('combined', true);
     if (!plannerOpen) togglePlanner();
     renderPlanner();
+    if (bAdded > 0) renderBuildPlanner();
     applyResearch();
   }
 }
@@ -1734,6 +1740,35 @@ function promoteToComboIfNeeded(type) {
   if (!plannerPinned) return;
   if (activePlannerTab === 'combined') return;
   if (activePlannerTab !== type) setPlannerTab('combined', true);
+}
+
+function addBuildingPrereqsForResearch(researchItems) {
+  const buildings = planetContext.buildings || {};
+  const needed = new Map(); // buildingKey → targetLevel
+
+  for (const r of researchItems) {
+    if (r.requiredLabLevel > 0) {
+      const lab = Object.values(buildings).find(b => b.key === 'research_lab');
+      if (lab) needed.set(lab.key, Math.max(needed.get(lab.key) || 0, r.requiredLabLevel));
+    }
+    for (const req of (r.requirements || [])) {
+      if (req.type !== 'building' || !req.key) continue;
+      const b = buildings[req.key];
+      if (!b) continue;
+      needed.set(req.key, Math.max(needed.get(req.key) || 0, req.level || 1));
+    }
+  }
+
+  let added = 0;
+  for (const [key, targetLevel] of needed) {
+    const b = buildings[key];
+    if (!b) continue;
+    while (bNextPlanLevel(b) <= targetLevel) {
+      buildPlan.push(makeBuildPlanItem(b, bNextPlanLevel(b)));
+      added++;
+    }
+  }
+  return added;
 }
 
 function clearActivePlan() {
