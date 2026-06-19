@@ -158,6 +158,27 @@
   .planner-panel { display:none; flex:1; flex-direction:column; overflow:hidden; }
   .planner-panel.active { display:flex; }
 
+  /* Plan management */
+  .plan-name-input { flex:1; background:none; border:none; border-bottom:1px solid transparent; color:var(--text); font-size:13px; font-weight:700; padding:2px 4px; outline:none; cursor:pointer; min-width:0; text-overflow:ellipsis; }
+  .plan-name-input:hover { border-bottom-color:var(--border); }
+  .plan-name-input:focus { border-bottom-color:var(--accent2); cursor:text; }
+  #plans-panel { display:none; flex:1; flex-direction:column; overflow:hidden; }
+  #plans-panel.visible { display:flex; }
+  .saved-plan-row { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .12s; }
+  .saved-plan-row:hover { background:var(--panel2); }
+  .saved-plan-row.active-plan { background:#0f1929; }
+  .saved-plan-name { flex:1; font-size:13px; font-weight:500; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .saved-plan-meta { font-size:11px; color:var(--muted); flex-shrink:0; }
+  .plan-delete-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0; line-height:1; }
+  .plan-delete-btn:hover { color:var(--red); }
+  #delete-confirm-panel { display:none; flex:1; flex-direction:column; align-items:center; justify-content:center; padding:24px; background:rgba(30,10,10,.97); }
+  #delete-confirm-panel.visible { display:flex; }
+  #share-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:600; display:flex; align-items:center; justify-content:center; }
+  #share-modal-backdrop.hidden { display:none; }
+  .share-tab-btn { flex:1; background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:10px 6px; font-size:12px; font-weight:600; cursor:pointer; text-transform:uppercase; letter-spacing:.4px; }
+  .share-tab-btn.active { color:var(--accent2); border-bottom-color:var(--accent2); }
+  .share-code-box { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--muted); font-family:monospace; font-size:11px; padding:10px; resize:none; outline:none; word-break:break-all; }
+
   /* Suggestion modal */
   .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:500; display:flex; align-items:center; justify-content:center; }
   .modal-backdrop.hidden { display:none; }
@@ -477,18 +498,78 @@
   <div id="research-output"><div class="loading"><div class="spinner"></div></div></div>
 </div><!-- /research-main -->
 
+<!-- Share modal -->
+<div id="share-modal-backdrop" class="hidden">
+  <div class="modal-box" style="max-width:480px;">
+    <h3 style="margin-bottom:4px;">Share Plan</h3>
+    <p id="share-plan-label" style="font-size:12px;color:var(--muted);margin-bottom:14px;"></p>
+    <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
+      <button class="share-tab-btn active" id="stab-text" onclick="setShareTab('text')">Readable</button>
+      <button class="share-tab-btn" id="stab-code" onclick="setShareTab('code')">Share Code</button>
+    </div>
+    <!-- Readable tab -->
+    <div id="share-content-text">
+      <textarea id="share-text-output" class="share-code-box" rows="5" readonly></textarea>
+      <button class="refresh-btn" onclick="copyShareText('share-text-output')" style="margin-top:10px;width:100%;padding:8px;">Copy Text</button>
+    </div>
+    <!-- Code tab -->
+    <div id="share-content-code" style="display:none;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <button class="refresh-btn" id="scope-research" onclick="setShareScope('research')" style="flex:1;font-size:11px;">Research</button>
+        <button class="refresh-btn active" id="scope-both" onclick="setShareScope('both')" style="flex:1;font-size:11px;border-color:var(--accent2);color:var(--accent2);">Both</button>
+        <button class="refresh-btn" id="scope-buildings" onclick="setShareScope('buildings')" style="flex:1;font-size:11px;">Buildings</button>
+      </div>
+      <textarea id="share-code-output" class="share-code-box" rows="4" readonly></textarea>
+      <button class="refresh-btn" onclick="copyShareText('share-code-output')" style="margin-top:10px;width:100%;padding:8px;">Copy Code</button>
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600;">Import a plan</div>
+        <textarea id="share-import-input" class="share-code-box" rows="3" placeholder="Paste a share code here…" style="color:var(--text);"></textarea>
+        <button class="refresh-btn" onclick="importPlanCode()" style="margin-top:8px;width:100%;padding:8px;border-color:var(--accent2);color:var(--accent2);">Import as New Plan</button>
+        <div id="share-import-status" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
+      </div>
+    </div>
+    <button onclick="closeShareModal()" style="margin-top:16px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;width:100%;text-align:center;">Close</button>
+  </div>
+</div>
+
 <!-- Planner sidebar -->
 <div id="planner-sidebar" class="collapsed">
-  <div class="planner-header">
-    <h3 id="planner-header-title">Plan</h3>
-    <button class="refresh-btn" id="planner-clear-btn" onclick="clearActivePlan()" style="font-size:11px;padding:3px 9px;">Clear</button>
+  <div class="planner-header" style="flex-direction:column;gap:10px;align-items:stretch;padding:12px 14px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <input id="plan-name-input" class="plan-name-input" type="text" value="" onblur="commitPlanRename()" onkeydown="if(event.key==='Enter')this.blur()">
+      <button class="refresh-btn" onclick="openShareModal()" style="font-size:11px;padding:3px 9px;flex-shrink:0;">Share</button>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onclick="createNewPlan()" style="flex:1;background:var(--accent2);border:none;color:#000;font-size:12px;font-weight:700;padding:7px 10px;border-radius:6px;cursor:pointer;letter-spacing:.3px;">＋ New Plan</button>
+      <button onclick="togglePlansPanel()" id="my-plans-btn" style="flex:1;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:600;padding:7px 10px;border-radius:6px;cursor:pointer;">My Plans ▾</button>
+    </div>
+  </div>
+
+  <!-- My Plans panel -->
+  <div id="plans-panel">
+    <div style="padding:10px 14px;flex-shrink:0;">
+      <button onclick="createNewPlan()" style="width:100%;background:var(--accent2);border:none;color:#000;font-size:13px;font-weight:700;padding:12px;border-radius:8px;cursor:pointer;letter-spacing:.3px;">＋ Start a New Plan</button>
+    </div>
+    <div id="plans-list" style="flex:1;overflow-y:auto;padding:0 0 10px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;"></div>
+  </div>
+
+  <!-- Delete confirm panel -->
+  <div id="delete-confirm-panel">
+    <div style="text-align:center;width:100%;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--red);margin-bottom:8px;">Delete Plan</div>
+      <div id="delete-confirm-name" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;"></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:24px;">This cannot be undone.</div>
+      <button id="delete-confirm-btn" style="width:100%;background:var(--red);border:none;color:#fff;font-size:14px;font-weight:700;padding:14px;border-radius:8px;cursor:pointer;margin-bottom:10px;">Delete Forever</button>
+      <button onclick="hidePlanOverlays()" style="width:100%;background:none;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:10px;border-radius:8px;cursor:pointer;">Cancel</button>
+    </div>
   </div>
 
   <!-- Planner tabs -->
-  <div class="planner-tabs">
-    <button class="planner-tab active" id="ptab-research"  onclick="setPlannerTab('research')">Research</button>
-    <button class="planner-tab"        id="ptab-buildings" onclick="setPlannerTab('buildings')">Buildings</button>
-    <button class="planner-tab"        id="ptab-combined"  onclick="setPlannerTab('combined')">Combined</button>
+  <div class="planner-tabs" id="planner-tabs-row">
+    <button class="planner-tab active" id="ptab-research"  onclick="setPlannerTab('research',true)">Research</button>
+    <button class="planner-tab"        id="ptab-buildings" onclick="setPlannerTab('buildings',true)">Buildings</button>
+    <button class="planner-tab"        id="ptab-combined"  onclick="setPlannerTab('combined',true)">Combined</button>
+    <button id="planner-pin-btn" onclick="togglePlannerPin()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;flex-shrink:0;align-self:center;margin-right:8px;white-space:nowrap;cursor:default;transition:color .15s,border-color .15s;">⇄ Following tab</button>
   </div>
 
   <!-- Research panel -->
@@ -554,15 +635,298 @@ let refreshTimer = null;
 let plan = [];
 let plannerOpen = false;
 
-function savePlan() {
-  try { localStorage.setItem('nlb_plan', JSON.stringify(plan)); } catch(e) {}
+// ── Plan management ───────────────────────────────────────────────────────────
+
+let savedPlans = [];
+let activePlanId = null;
+
+const PLAN_ADJ  = ['Iron','Swift','Dark','Silent','Void','Storm','Ember','Frost','Nova','Shadow','Golden','Crimson','Deep','Blazing','Ancient','Hollow','Shattered','Lone','Bright','Obsidian','Verdant','Ashen','Gilded','Rusted','Phantom'];
+const PLAN_NOUN = ['Dawn','Forge','March','Protocol','Horizon','Ascent','Gambit','Surge','Gate','Chain','Beacon','Tide','Veil','Edge','Pact','Signal','Strike','Course','Directive','Accord','Vector','Codex','Apex','Circuit','Mandate'];
+
+function generatePlanName() {
+  return PLAN_ADJ[Math.floor(Math.random()*PLAN_ADJ.length)] + ' ' + PLAN_NOUN[Math.floor(Math.random()*PLAN_NOUN.length)];
 }
 
-function loadPlan() {
+function persistPlans() {
   try {
-    const raw = localStorage.getItem('nlb_plan');
-    if (raw) plan = JSON.parse(raw);
-  } catch(e) { plan = []; }
+    localStorage.setItem('nlb_plans', JSON.stringify(savedPlans));
+    localStorage.setItem('nlb_active_plan', activePlanId || '');
+  } catch(e) {}
+}
+
+function saveActivePlan() {
+  const p = savedPlans.find(p => p.id === activePlanId);
+  if (!p) return;
+  p.research  = plan;
+  p.buildings = buildPlan;
+  p.updatedAt = new Date().toISOString();
+  persistPlans();
+}
+
+function savePlan()      { saveActivePlan(); }
+function saveBuildPlan() { saveActivePlan(); }
+
+function initPlans() {
+  try {
+    const raw = localStorage.getItem('nlb_plans');
+    if (raw) savedPlans = JSON.parse(raw);
+  } catch(e) { savedPlans = []; }
+
+  // Migrate legacy keys
+  const legacyR = localStorage.getItem('nlb_plan');
+  const legacyB = localStorage.getItem('nlb_build_plan');
+  if ((legacyR || legacyB) && savedPlans.length === 0) {
+    const migrated = { id: String(Date.now()), name: generatePlanName(), updatedAt: new Date().toISOString(),
+      research: [], buildings: [] };
+    try { if (legacyR) migrated.research  = JSON.parse(legacyR); } catch(e) {}
+    try { if (legacyB) migrated.buildings = JSON.parse(legacyB); } catch(e) {}
+    savedPlans.push(migrated);
+    localStorage.removeItem('nlb_plan');
+    localStorage.removeItem('nlb_build_plan');
+  }
+
+  // Ensure at least one plan exists
+  if (savedPlans.length === 0) {
+    savedPlans.push({ id: String(Date.now()), name: generatePlanName(), research: [], buildings: [], updatedAt: new Date().toISOString() });
+  }
+
+  // Restore active plan id
+  const storedId = localStorage.getItem('nlb_active_plan');
+  activePlanId = savedPlans.find(p => p.id === storedId) ? storedId : savedPlans[0].id;
+
+  // Load queues into memory
+  const active = savedPlans.find(p => p.id === activePlanId);
+  plan      = active?.research  || [];
+  buildPlan = active?.buildings || [];
+
+  persistPlans();
+  updatePlanNameInput();
+}
+
+function updatePlanNameInput() {
+  const active = savedPlans.find(p => p.id === activePlanId);
+  const input = document.getElementById('plan-name-input');
+  if (input && active) input.value = active.name;
+}
+
+function commitPlanRename() {
+  const input = document.getElementById('plan-name-input');
+  const active = savedPlans.find(p => p.id === activePlanId);
+  if (!input || !active) return;
+  const name = input.value.trim() || generatePlanName();
+  input.value = name;
+  active.name = name;
+  active.updatedAt = new Date().toISOString();
+  persistPlans();
+  if (document.getElementById('plans-panel').classList.contains('visible')) renderPlansList();
+}
+
+function createNewPlan() {
+  const p = { id: String(Date.now()), name: generatePlanName(), research: [], buildings: [], updatedAt: new Date().toISOString() };
+  savedPlans.push(p);
+  activePlanId = p.id;
+  plan = [];
+  buildPlan = [];
+  persistPlans();
+  hidePlanOverlays();
+  updatePlanNameInput();
+  renderPlanner();
+  renderBuildPlanner();
+  applyResearch();
+  if (activeMainTab === 'buildings') applyBuildings();
+}
+
+function loadSavedPlan(id) {
+  const p = savedPlans.find(p => p.id === id);
+  if (!p) return;
+  activePlanId = id;
+  plan      = p.research  || [];
+  buildPlan = p.buildings || [];
+  persistPlans();
+  hidePlanOverlays();
+  updatePlanNameInput();
+  renderPlanner();
+  renderBuildPlanner();
+  applyResearch();
+  if (activeMainTab === 'buildings') applyBuildings();
+}
+
+function togglePlansPanel() {
+  const panel = document.getElementById('plans-panel');
+  if (panel.classList.contains('visible')) {
+    hidePlanOverlays();
+  } else {
+    hidePlanOverlays();
+    panel.classList.add('visible');
+    document.getElementById('planner-tabs-row').style.display = 'none';
+    document.querySelectorAll('.planner-panel').forEach(p => p.style.display = 'none');
+    document.getElementById('my-plans-btn').textContent = 'My Plans ▴';
+    renderPlansList();
+  }
+}
+
+function hidePlanOverlays() {
+  document.getElementById('plans-panel').classList.remove('visible');
+  document.getElementById('delete-confirm-panel').classList.remove('visible');
+  document.getElementById('planner-tabs-row').style.display = '';
+  // Restore active planner panel
+  document.querySelectorAll('.planner-panel').forEach(p => p.style.display = '');
+  document.querySelectorAll('.planner-panel:not(.active)').forEach(p => p.style.display = 'none');
+  document.getElementById('my-plans-btn').textContent = 'My Plans ▾';
+}
+
+function renderPlansList() {
+  const el = document.getElementById('plans-list');
+  const sorted = [...savedPlans].sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  el.innerHTML = sorted.map(p => {
+    const isActive = p.id === activePlanId;
+    const count = (p.research?.length||0) + (p.buildings?.length||0);
+    const ago = relativeTime(p.updatedAt);
+    return `<div class="saved-plan-row${isActive?' active-plan':''}" onclick="loadSavedPlan('${p.id}')">
+      <div style="flex:1;min-width:0;">
+        <div class="saved-plan-name">${p.name}${isActive?' <span style="font-size:10px;color:var(--accent2);font-weight:700;">● active</span>':''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${count} item${count!==1?'s':''} · ${ago}</div>
+      </div>
+      <button class="plan-delete-btn" onclick="event.stopPropagation();showDeleteConfirm('${p.id}')" title="Delete plan">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function relativeTime(isoStr) {
+  const diff = Date.now() - new Date(isoStr);
+  const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), d = Math.floor(diff/86400000);
+  if (d > 0)  return `${d}d ago`;
+  if (h > 0)  return `${h}h ago`;
+  if (m > 0)  return `${m}m ago`;
+  return 'just now';
+}
+
+function showDeleteConfirm(id) {
+  const p = savedPlans.find(p => p.id === id);
+  if (!p) return;
+  document.getElementById('delete-confirm-name').textContent = p.name;
+  document.getElementById('delete-confirm-btn').onclick = () => confirmDeletePlan(id);
+  document.getElementById('plans-panel').classList.remove('visible');
+  document.getElementById('delete-confirm-panel').classList.add('visible');
+  document.getElementById('planner-tabs-row').style.display = 'none';
+  document.querySelectorAll('.planner-panel').forEach(p => p.style.display = 'none');
+}
+
+function confirmDeletePlan(id) {
+  savedPlans = savedPlans.filter(p => p.id !== id);
+  if (savedPlans.length === 0) {
+    savedPlans.push({ id: String(Date.now()), name: generatePlanName(), research: [], buildings: [], updatedAt: new Date().toISOString() });
+  }
+  if (activePlanId === id) {
+    activePlanId = savedPlans[0].id;
+    plan      = savedPlans[0].research  || [];
+    buildPlan = savedPlans[0].buildings || [];
+  }
+  persistPlans();
+  hidePlanOverlays();
+  updatePlanNameInput();
+  renderPlanner();
+  renderBuildPlanner();
+}
+
+// ── Share / Import ────────────────────────────────────────────────────────────
+
+let shareScope = 'both';
+let shareTabActive = 'text';
+
+function openShareModal() {
+  const active = savedPlans.find(p => p.id === activePlanId);
+  document.getElementById('share-plan-label').textContent = active ? `"${active.name}"` : '';
+  document.getElementById('share-import-status').textContent = '';
+  document.getElementById('share-import-input').value = '';
+  setShareTab('text');
+  setShareScope('both');
+  document.getElementById('share-modal-backdrop').classList.remove('hidden');
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal-backdrop').classList.add('hidden');
+}
+
+function setShareTab(tab) {
+  shareTabActive = tab;
+  document.getElementById('share-content-text').style.display = tab === 'text' ? '' : 'none';
+  document.getElementById('share-content-code').style.display = tab === 'code' ? '' : 'none';
+  document.getElementById('stab-text').classList.toggle('active', tab === 'text');
+  document.getElementById('stab-code').classList.toggle('active', tab === 'code');
+  if (tab === 'text') refreshShareText();
+  else refreshShareCode();
+}
+
+function setShareScope(scope) {
+  shareScope = scope;
+  ['research','both','buildings'].forEach(s => {
+    const btn = document.getElementById('scope-'+s);
+    const on = s === scope;
+    btn.style.borderColor = on ? 'var(--accent2)' : '';
+    btn.style.color = on ? 'var(--accent2)' : '';
+  });
+  refreshShareCode();
+}
+
+function refreshShareText() {
+  const active = savedPlans.find(p => p.id === activePlanId);
+  const rItems = (active?.research||[]).map(p => `${p.name} Lv${p.toLevel}`);
+  const bItems = (active?.buildings||[]).map(p => `${p.name} Lv${p.toLevel}`);
+  const all = [...rItems, ...bItems];
+  document.getElementById('share-text-output').value = all.length ? all.join(', ') : '(empty plan)';
+}
+
+function refreshShareCode() {
+  const active = savedPlans.find(p => p.id === activePlanId);
+  const r = shareScope !== 'buildings' ? (active?.research||[]).map(p => [p.key, p.toLevel]) : [];
+  const b = shareScope !== 'research'  ? (active?.buildings||[]).map(p => [p.key, p.toLevel]) : [];
+  const payload = { v:1, n: active?.name || 'Plan', r, b };
+  document.getElementById('share-code-output').value = 'nlb:' + btoa(JSON.stringify(payload));
+}
+
+function copyShareText(elId) {
+  const el = document.getElementById(elId);
+  el.select();
+  try { document.execCommand('copy'); } catch(e) { navigator.clipboard?.writeText(el.value); }
+}
+
+function importPlanCode() {
+  const raw = document.getElementById('share-import-input').value.trim();
+  const statusEl = document.getElementById('share-import-status');
+  if (!raw) { statusEl.style.color='var(--red)'; statusEl.textContent = 'Paste a share code first.'; return; }
+  try {
+    const stripped = raw.startsWith('nlb:') ? raw.slice(4) : raw;
+    const data = JSON.parse(atob(stripped));
+    if (data.v !== 1) throw new Error('unknown version');
+
+    // Rebuild research items
+    const rItems = (data.r||[]).flatMap(([key, lvl]) => {
+      const r = researchData.find(r => r.key === key);
+      if (!r) return [];
+      const item = makePlanItem(r, lvl);
+      return [item];
+    });
+
+    // Rebuild building items
+    const bItems = (data.b||[]).flatMap(([key, lvl]) => {
+      const b = (planetContext.buildings||{})[key];
+      if (!b) return [];
+      return [makeBuildPlanItem(b, lvl)];
+    });
+
+    const newPlan = { id: String(Date.now()), name: data.n || generatePlanName(),
+      research: rItems, buildings: bItems, updatedAt: new Date().toISOString() };
+    savedPlans.push(newPlan);
+    persistPlans();
+
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = `Imported "${newPlan.name}" — ${rItems.length + bItems.length} items. Load it from My Plans.`;
+    document.getElementById('share-import-input').value = '';
+  } catch(e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Invalid share code.';
+  }
 }
 
 // ── Level cost computation ────────────────────────────────────────────────────
@@ -1316,18 +1680,8 @@ function renderPlanner() {
 let buildPlan = [];
 let activeMainTab = 'research';
 let activePlannerTab = 'research';
+let plannerPinned = false;
 let bState = { cats: new Set(), statuses: new Set(), sortKey: 'default', sortDir: 'asc', view: 'cards', search: '' };
-
-function saveBuildPlan() {
-  try { localStorage.setItem('nlb_build_plan', JSON.stringify(buildPlan)); } catch(e) {}
-}
-
-function loadBuildPlan() {
-  try {
-    const raw = localStorage.getItem('nlb_build_plan');
-    if (raw) buildPlan = JSON.parse(raw);
-  } catch(e) { buildPlan = []; }
-}
 
 function setMainTab(tab) {
   activeMainTab = tab;
@@ -1336,16 +1690,42 @@ function setMainTab(tab) {
   document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'buildings' && planetContext.planetId) applyBuildings();
+  if (!plannerPinned && (tab === 'research' || tab === 'buildings')) setPlannerTab(tab, false);
 }
 
-function setPlannerTab(tab) {
+function setPlannerTab(tab, pin) {
   activePlannerTab = tab;
+  if (pin) plannerPinned = true;
   document.querySelectorAll('.planner-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('ptab-' + tab).classList.add('active');
   document.querySelectorAll('.planner-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('ppanel-' + tab).classList.add('active');
   document.getElementById('planner-clear-btn').style.display = tab === 'combined' ? 'none' : '';
   renderPlannerCombined();
+  updatePinBtn();
+}
+
+function updatePinBtn() {
+  const btn = document.getElementById('planner-pin-btn');
+  if (!btn) return;
+  if (plannerPinned) {
+    btn.textContent = '📌 Pinned — click to unpin';
+    btn.style.color = 'var(--accent2)';
+    btn.style.borderColor = 'var(--accent2)';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.textContent = '⇄ Following tab';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+    btn.style.cursor = 'default';
+  }
+}
+
+function togglePlannerPin() {
+  if (!plannerPinned) return;
+  plannerPinned = false;
+  if (activeMainTab === 'research' || activeMainTab === 'buildings') setPlannerTab(activeMainTab, false);
+  else updatePinBtn();
 }
 
 function clearActivePlan() {
@@ -1920,8 +2300,7 @@ async function boot() {
   if (err) history.replaceState({}, '', '/');
 
   maybeShowConsent();
-  loadPlan();
-  loadBuildPlan();
+  initPlans();
   await loadPlanets();
   applyResearch();
   startTimers();
