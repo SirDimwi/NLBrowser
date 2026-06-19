@@ -630,6 +630,9 @@ let refreshTimer = null;
 let plan = [];
 let isGuest = false;
 let plannerOpen = true;
+let sessionStart = Date.now();
+let sessionEnded = false;
+let sessionHadActivity = false;
 
 // ── Plan management ───────────────────────────────────────────────────────────
 
@@ -1363,7 +1366,8 @@ function setView(val) {
   document.getElementById('view-cards').style.borderColor   = val==='cards'   ? 'var(--accent)' : '';
   document.getElementById('view-columns').style.borderColor = val==='columns' ? 'var(--accent)' : '';
   document.getElementById('view-table').style.borderColor   = val==='table'   ? 'var(--accent)' : '';
-  if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'view', view: val}) }).catch(()=>{});
+  sessionHadActivity = true;
+  if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'view', view: val, ...(isGuest && {anonId: getOrCreateAnonId()})}) }).catch(()=>{});
   applyResearch();
 }
 
@@ -1635,7 +1639,8 @@ function addToPlan(researchId) {
   plan.push(makePlanItem(r, nextPlanLevel(r)));
   if (toAdd.length) showToast(`Added "${r.name}" + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
   const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
-  if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add'}) }).catch(()=>{});
+  sessionHadActivity = true;
+  if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add', ...(isGuest && {anonId: getOrCreateAnonId()})}) }).catch(()=>{});
   setPlannerTab(bAdded > 0 ? 'combined' : 'research');
   if (!plannerOpen) togglePlanner();
   renderPlanner();
@@ -2387,6 +2392,7 @@ function startTimers() {
 // ── Auth & Boot ───────────────────────────────────────────────────────────────
 
 async function logout() {
+  sessionEnded = true;
   await fetch('/logout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2460,6 +2466,12 @@ async function enterGuestMode() {
     showToast('Could not load catalogue — some data may be unavailable.');
   }
 
+  fetch('/track', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'guest_boot', anonId: getOrCreateAnonId() }),
+  }).catch(() => {});
+
   initPlans();
   applyResearch();
   if (activeMainTab === 'buildings') applyBuildings();
@@ -2498,6 +2510,9 @@ async function boot() {
   if (err) history.replaceState({}, '', '/');
 
   maybeShowConsent();
+  if (localStorage.getItem('nlb_consent') === 'yes') {
+    fetch('/consent', { method: 'POST' }).catch(() => {});
+  }
   initPlans();
   await loadPlanets();
   applyResearch();
@@ -2507,6 +2522,13 @@ async function boot() {
 }
 
 boot();
+
+window.addEventListener('pagehide', () => {
+  if (sessionEnded) return;
+  const payload = { type: 'session_end', duration: Date.now() - sessionStart, bounce: !sessionHadActivity };
+  if (isGuest) payload.anonId = getOrCreateAnonId();
+  navigator.sendBeacon('/track', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+});
 
 // ── Export ────────────────────────────────────────────────────────────────────
 
@@ -2564,10 +2586,22 @@ function maybeShowConsent() {
 function dismissConsent(accepted) {
   localStorage.setItem('nlb_consent', accepted ? 'yes' : 'no');
   document.getElementById('consent-banner').classList.add('hidden');
+  if (accepted) fetch('/consent', { method: 'POST' }).catch(() => {});
 }
 
 function hasConsent() {
   return isGuest || localStorage.getItem('nlb_consent') === 'yes';
+}
+
+function getOrCreateAnonId() {
+  let id = localStorage.getItem('nlb_anon_id');
+  if (!id) {
+    const arr = new Uint8Array(12);
+    crypto.getRandomValues(arr);
+    id = 'g' + Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem('nlb_anon_id', id);
+  }
+  return id;
 }
 
 // ── Patch notes ───────────────────────────────────────────────────────────────
@@ -2780,7 +2814,7 @@ async function submitSuggest() {
     const res = await fetch('/suggest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, type: document.getElementById('suggest-type').value, anonymous: !hasConsent() }),
+      body: JSON.stringify({ text, type: document.getElementById('suggest-type').value, anonymous: isGuest || !hasConsent() }),
     });
     const status = document.getElementById('suggest-status');
     if (res.ok) {

@@ -19,7 +19,7 @@
 <p>NL Browser is a companion research tool for the browser game <a href="https://nexuslegacy.space">Nexus Legacy</a>. This policy explains what data we access and how we handle it.</p>
 
 <h2>Using NL Browser without an account</h2>
-<p>You can use NL Browser without logging in. In this mode the tool loads a public catalogue of game definitions and lets you browse the full research and building trees, build and save plans, and open shared build links — all shown at default ("level 0") values. When you are not logged in, no <code>nexus_token</code> is read, no personal or in-game data is sent to our server, and no usage analytics are recorded. Plans you create are saved only in your own browser's local storage. The sections below describe what additionally happens when you choose to log in.</p>
+<p>You can use NL Browser without logging in. In this mode the tool loads a public catalogue of game definitions and lets you browse the full research and building trees, build and save plans, and open shared build links — all shown at default ("level 0") values. When you are not logged in, no <code>nexus_token</code> is read and no personal or in-game data is sent to our server. Anonymous usage analytics are collected (see "Usage analytics" below) to help improve the tool; your usage is not linked to any in-game identity or personal information. Plans you create are saved only in your own browser's local storage. The sections below describe what additionally happens when you choose to log in.</p>
 
 <h2>What data we access</h2>
 <p>The Chrome extension reads the <code>nexus_token</code> cookie from <code>nexuslegacy.space</code>. This cookie is a session token issued by Nexus Legacy when you log in. It is used solely to authenticate requests to the Nexus Legacy API on your behalf.</p>
@@ -34,15 +34,17 @@
   <li>Your session expires after 7 days or when you log out.</li>
 </ul>
 
-<h2>Optional usage analytics</h2>
-<p>On first login you will be asked whether to allow anonymous usage analytics. If you accept, NL Browser records:</p>
+<h2>Usage analytics</h2>
+<p>Anonymous, aggregate usage counts are recorded for everyone — including guests — to help improve the tool. These use counting mechanisms (such as probabilistic sketches) that keep no recoverable identifier: knowing how many people used the tool on a given day does not require storing who they were. No identifier traceable to a person or game account is stored by default.</p>
+<p>Logged-in users are additionally asked, on first use, whether to allow their in-game identity to be associated with usage data so that retention can be measured (whether users return over time). Until and unless you click Accept, nothing identifiable is stored and your usage is treated exactly like a guest's. Clicking Accept stores your in-game user ID alongside a first-seen date for retention calculations only. Clicking Decline keeps everything anonymous.</p>
+<p>Analytics collected include:</p>
 <ul>
-  <li>That you logged in on a given day (used for DAU/MAU counts — always recorded regardless of consent)</li>
+  <li>That you used the tool on a given day (approximate unique-user count — not linked to any identity unless you have consented)</li>
   <li>Which view mode you use (cards, columns, table)</li>
   <li>Whether you use the Research Planner</li>
   <li>Approximate session duration and whether you immediately left</li>
 </ul>
-<p>No game data, chat, or personal information is included in any of the above. If you decline, none of the optional analytics are recorded. You can change your preference by clearing your browser's local storage for this site.</p>
+<p>No game data, chat, or personal information is included at any tier. To withdraw consent, clear <code>nlb_consent</code> from local storage for this site (or clear all local storage) — the banner will reappear on next login.</p>
 
 <h2>Suggestions</h2>
 <p>If you submit a suggestion via the suggestion box, the text is stored along with your in-game username (if you accepted analytics) or anonymously (if you declined). Suggestions are never shared publicly.</p>

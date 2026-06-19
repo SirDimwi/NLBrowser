@@ -45,13 +45,23 @@ function dateKey(offsetDays = 0) {
 
 const TTL = 35 * 24 * 60 * 60;
 
-async function recordUsage(userId) {
+// Anonymous tier: everyone. HLL — no identifier is recoverable.
+async function recordUsageAnon(id) {
+  if (!id) return;
+  const d = dateKey();
+  await redisPipeline([
+    ['PFADD',  `usage:hll:${d}`, String(id)],
+    ['EXPIRE', `usage:hll:${d}`, TTL],
+  ]);
+}
+
+// Identified tier: consented logged-in users only. Called from /consent.
+async function recordUsageIdentified(userId) {
   if (!userId) return;
   const d = dateKey();
   await redisPipeline([
     ['SADD',   `usage:${d}`, String(userId)],
     ['EXPIRE', `usage:${d}`, TTL],
-    // first-seen for retention (NX = only set if not exists, no expiry)
     ['SET', `user:first_seen:${userId}`, d, 'NX'],
   ]);
 }
@@ -79,11 +89,12 @@ async function recordEvent(event, userId) {
     const v = ['cards','columns','table'].includes(event.view) ? event.view : null;
     if (v) await redisCmd('INCR', `metric:view:${v}`);
   } else if (event.type === 'planner_add') {
-    await redisPipeline([
-      ['INCR',   'metric:planner:adds'],
-      ['SADD',   `metric:planner:users:${d}`, String(userId)],
-      ['EXPIRE', `metric:planner:users:${d}`, TTL],
-    ]);
+    const cmds = [['INCR', 'metric:planner:adds']];
+    if (userId) {
+      cmds.push(['PFADD',  `planner:hll:${d}`, String(userId)]);
+      cmds.push(['EXPIRE', `planner:hll:${d}`, TTL]);
+    }
+    await redisPipeline(cmds);
   } else if (event.type === 'session_end') {
     const secs = Math.min(Math.round(event.duration / 1000), 86400);
     await redisPipeline([
@@ -99,13 +110,20 @@ async function computeStats() {
   const days = Array.from({ length: 30 }, (_, i) => dateKey(i));
   const today = days[0];
 
+  // Merge 30 daily HLLs into a short-lived key for MAU count
+  const mauKey = `usage:hll:mau:${today}`;
+  await redisPipeline([
+    ['PFMERGE', mauKey, ...days.map(d => `usage:hll:${d}`)],
+    ['EXPIRE',  mauKey, 3600],
+  ]);
+
   const cmds = [
-    // 0–29: DAU per day
-    ...days.map(d => ['SCARD', `usage:${d}`]),
-    // 30: MAU union
-    ['SUNION', ...days.map(d => `usage:${d}`)],
-    // 31: today's planner users
-    ['SCARD', `metric:planner:users:${today}`],
+    // 0–29: DAU per day (anonymous HLL)
+    ...days.map(d => ['PFCOUNT', `usage:hll:${d}`]),
+    // 30: MAU (merged HLL)
+    ['PFCOUNT', mauKey],
+    // 31: today's planner unique users (HLL)
+    ['PFCOUNT', `planner:hll:${today}`],
     // 32–34: view counts
     ['GET', 'metric:view:cards'],
     ['GET', 'metric:view:columns'],
@@ -118,11 +136,11 @@ async function computeStats() {
     ['GET', `metric:auth:fail:${today}`],
     // 39: planner adds all-time
     ['GET', 'metric:planner:adds'],
-    // 40–42: bounce & session counts today + yesterday
+    // 40–41: bounce & session counts today
     ['GET', `metric:bounce:${today}`],
     ['GET', `metric:sessions:${today}`],
-    // 43–45: retention lookups — get MAU user list to check first-seen
-    // (handled separately below after we have the MAU list)
+    // 42: identified-tier actives today (consented users only — for retention)
+    ['SMEMBERS', `usage:${today}`],
   ];
 
   const r = await redisPipeline(cmds);
@@ -134,44 +152,37 @@ async function computeStats() {
     if (count > 0) daily[d] = count;
   });
 
-  const mauList = r[30]?.result ?? [];
-
-  // Retention: for each MAU user check first_seen date
-  let d1 = 0, d7 = 0, d30 = 0;
-  if (mauList.length > 0) {
-    const fsKeys = mauList.map(uid => ['GET', `user:first_seen:${uid}`]);
-    const todayUsers = new Set(r[0]?.result ? undefined : []); // active today
-    // Re-fetch today's active set for retention
-    const [todaySet, firstSeens] = await Promise.all([
-      redisCmd('SMEMBERS', `usage:${today}`),
-      redisPipeline(fsKeys),
-    ]);
-    const activeToday = new Set(todaySet ?? []);
-    const day1ago  = dateKey(1);
-    const day7ago  = dateKey(7);
-    const day30ago = dateKey(30);
-    mauList.forEach((uid, i) => {
-      const fs = firstSeens?.[i]?.result;
-      if (!fs || !activeToday.has(uid)) return;
-      if (fs === day1ago)  d1++;
-      if (fs <= day7ago && fs > dateKey(8))  d7++;
-      if (fs <= day30ago && fs > dateKey(31)) d30++;
-    });
-  }
-
+  const mau = r[30]?.result ?? 0;
   const sessionCount = parseInt(r[36]?.result ?? 0);
   const avgSession = sessionCount > 0
     ? Math.round(parseFloat(r[35]?.result ?? 0) / sessionCount)
     : 0;
-
   const bounceCount   = parseInt(r[40]?.result ?? 0);
   const sessionsDone  = parseInt(r[41]?.result ?? 0);
   const totalSessions = bounceCount + sessionsDone;
   const bounceRate    = totalSessions > 0 ? Math.round(bounceCount / totalSessions * 100) : null;
 
+  // Retention: identified tier only — consented users active today
+  let d1 = 0, d7 = 0, d30 = 0;
+  const consentedToday = r[42]?.result ?? [];
+  if (consentedToday.length > 0) {
+    const fsKeys = consentedToday.map(uid => ['GET', `user:first_seen:${uid}`]);
+    const firstSeens = await redisPipeline(fsKeys);
+    const day1ago  = dateKey(1);
+    const day7ago  = dateKey(7);
+    const day30ago = dateKey(30);
+    consentedToday.forEach((uid, i) => {
+      const fs = firstSeens?.[i]?.result;
+      if (!fs) return;
+      if (fs === day1ago)  d1++;
+      if (fs <= day7ago  && fs > dateKey(8))  d7++;
+      if (fs <= day30ago && fs > dateKey(31)) d30++;
+    });
+  }
+
   return {
     dau: daily[today] ?? 0,
-    mau: mauList.length,
+    mau,
     daily,
     views: {
       cards:   parseInt(r[32]?.result ?? 0),
@@ -179,8 +190,8 @@ async function computeStats() {
       table:   parseInt(r[34]?.result ?? 0),
     },
     planner: {
-      totalAdds:   parseInt(r[39]?.result ?? 0),
-      usersToday:  r[31]?.result ?? 0,
+      totalAdds:  parseInt(r[39]?.result ?? 0),
+      usersToday: r[31]?.result ?? 0,
     },
     session: {
       avgDurationSecs: avgSession,
@@ -190,7 +201,7 @@ async function computeStats() {
       successToday: parseInt(r[37]?.result ?? 0),
       failToday:    parseInt(r[38]?.result ?? 0),
     },
-    retention: { d1, d7, d30 },
+    retention: { d1, d7, d30, basis: 'consented users' },
   };
 }
 
@@ -293,7 +304,7 @@ app.get('/auth', async (req, res) => {
 
   req.session.startTime = Date.now();
   req.session.apiCallCount = 0;
-  recordUsage(payload.userId);
+  recordUsageAnon(payload.userId);
   recordAuthSuccess();
   res.redirect('/');
 });
@@ -319,7 +330,7 @@ app.post('/auth/manual', async (req, res) => {
   req.session.user = { userId: payload.userId, username: payload.username, race: payload.race, leaderType: payload.leaderType, universeKey, planetId, exp: payload.exp };
   req.session.startTime = Date.now();
   req.session.apiCallCount = 0;
-  recordUsage(payload.userId);
+  recordUsageAnon(payload.userId);
   recordAuthSuccess();
   res.json({ ok: true });
 });
@@ -356,13 +367,28 @@ app.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/track', async (req, res) => {
-  const { type, view } = req.body ?? {};
+app.post('/consent', async (req, res) => {
   const userId = req.session.user?.userId;
+  if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+  req.session.consent = true;
+  await recordUsageIdentified(userId);
+  res.json({ ok: true });
+});
+
+app.post('/track', async (req, res) => {
+  const { type, view, anonId, duration, bounce } = req.body ?? {};
+  const userId = req.session.user?.userId;
+  const safeAnonId = typeof anonId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(anonId) ? anonId : null;
+  const effectiveId = userId ?? safeAnonId;
+
   if (type === 'view' && view) {
-    await recordEvent({ type: 'view', view }, userId);
+    await recordEvent({ type: 'view', view }, effectiveId);
   } else if (type === 'planner_add') {
-    await recordEvent({ type: 'planner_add' }, userId);
+    await recordEvent({ type: 'planner_add' }, effectiveId);
+  } else if (type === 'guest_boot' && safeAnonId && !userId) {
+    await recordUsageAnon(safeAnonId);
+  } else if (type === 'session_end' && typeof duration === 'number') {
+    await recordEvent({ type: 'session_end', duration, bounce: !!bounce }, effectiveId);
   }
   res.json({ ok: true });
 });
@@ -604,6 +630,7 @@ app.post('/suggest', async (req, res) => {
 
 app.get('/suggestions', async (req, res) => {
   const key = process.env.STATS_KEY;
+  if (!key && process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Not configured' });
   if (key && req.query.key !== key) return res.status(401).json({ error: 'Unauthorized' });
   const [inbox, trash] = await Promise.all([
     redisCmd('LRANGE', 'suggestions:inbox', 0, -1),
@@ -615,6 +642,7 @@ app.get('/suggestions', async (req, res) => {
 
 app.get('/stats', async (req, res) => {
   const key = process.env.STATS_KEY;
+  if (!key && process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Not configured' });
   if (key && req.query.key !== key) return res.status(401).json({ error: 'Unauthorized' });
   res.json(await computeStats());
 });
