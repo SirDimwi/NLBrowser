@@ -1714,7 +1714,8 @@ function setPlannerTab(tab) {
 
 function confirmPlannerTabForAdd(type) {
   if (activePlannerTab === 'combined' || activePlannerTab === type) return;
-  if (confirm('Convert to a combined plan?')) setPlannerTab('combined');
+  const conflictHasItems = type === 'research' ? buildPlan.length > 0 : plan.length > 0;
+  if (conflictHasItems && confirm('Convert to a combined plan?')) setPlannerTab('combined');
   else setPlannerTab(type);
 }
 
