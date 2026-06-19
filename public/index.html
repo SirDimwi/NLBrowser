@@ -140,6 +140,11 @@
   .plan-btn { background: none; border: 1px solid var(--border); color: var(--muted); width: 24px; height: 24px; border-radius: 5px; cursor: pointer; font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s; }
   .plan-btn:hover { border-color: var(--accent2); color: var(--accent2); }
   .plan-btn:disabled { opacity: .3; cursor: default; }
+  .plan-suggestion { background:#111a0e; border:1px solid #253318; border-left:3px solid var(--green); border-radius:6px; padding:8px 10px; margin:8px 10px 0; display:flex; gap:8px; align-items:flex-start; }
+  .plan-suggestion .sug-body { flex:1; font-size:11px; color:var(--muted); line-height:1.5; }
+  .plan-suggestion .sug-title { font-size:12px; font-weight:600; color:var(--text); margin-bottom:2px; }
+  .plan-suggestion .sug-add { background:none; border:1px solid var(--green); color:var(--green); font-size:10px; padding:2px 7px; border-radius:4px; cursor:pointer; flex-shrink:0; margin-top:2px; transition:all .15s; }
+  .plan-suggestion .sug-add:hover { background:var(--green); color:#000; }
   .planner-toggle { background: var(--panel2); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all .15s; white-space: nowrap; }
   .planner-toggle:hover { border-color: var(--accent); color: var(--accent); }
   .planner-toggle.active { border-color: var(--accent2); color: var(--accent2); }
@@ -596,6 +601,7 @@
       <strong style="color:var(--yellow)">⚠ Note</strong><br>
       · After completing a level in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update costs
     </div>
+    <div id="plan-suggestions-research"></div>
     <div class="planner-items" id="planner-items">
       <div class="plan-empty">Add research items using the + button</div>
     </div>
@@ -616,6 +622,7 @@
       <strong style="color:var(--yellow)">⚠ Note</strong><br>
       · After upgrading in-game, <strong style="color:var(--text)">refresh</strong> the dashboard to update progress
     </div>
+    <div id="plan-suggestions-buildings"></div>
     <div class="planner-items" id="build-planner-items">
       <div class="plan-empty">Add buildings using the + button</div>
     </div>
@@ -627,6 +634,7 @@
 
   <!-- Combined panel -->
   <div class="planner-panel" id="ppanel-combined">
+    <div id="plan-suggestions-combined"></div>
     <div class="planner-items" id="combined-planner-items">
       <div class="plan-empty">Add items to Research or Buildings plans</div>
     </div>
@@ -1167,7 +1175,19 @@ async function refreshPlanetContext() {
       };
     }
     planetContext.buildings = buildingsMap;
-    planetContext.buildSpeedMult = planetData.buildSpeedMult ?? 1;
+
+    // Derive build speed multiplier from Construction Yard levels + research bonuses
+    // (API does not expose buildSpeedMult directly)
+    let buildBonus = 0;
+    const cy = buildingsMap['construction_yard'];
+    if (cy?.level) buildBonus += cy.level * 0.05;
+    for (const r of researchData) {
+      if (!r.level) continue;
+      for (const e of (r.effects || [])) {
+        if (e.type === 'build_speed_bonus') buildBonus += e.value * r.level;
+      }
+    }
+    planetContext.buildSpeedMult = Math.max(0.1, 1 - buildBonus);
 
     renderResourceBar();
     if (activeMainTab === 'buildings') applyBuildings();
@@ -1638,6 +1658,90 @@ function clearPlan() {
   applyResearch();
 }
 
+function computePlanSuggestions() {
+  const suggestions = [];
+  const fmtS = (s) => {
+    const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60);
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
+  // ── Build speed: Construction Yard ──
+  if (buildPlan.length >= 2) {
+    const cy = (planetContext.buildings || {})['construction_yard'];
+    if (cy && cy.maxLevel > 0) {
+      const queuedCY = buildPlan.filter(p => p.key === 'construction_yard').length;
+      const nextCYLevel = cy.level + queuedCY + 1;
+      if (nextCYLevel <= cy.maxLevel) {
+        const currentMult = planetContext.buildSpeedMult || 1;
+        const nonCYItems = buildPlan.filter(p => p.key !== 'construction_yard');
+        const nonCYTime = nonCYItems.reduce((s, p) => s + (p.time || 0), 0);
+        const timeSaved = Math.round(nonCYTime * 0.05 / currentMult);
+        const cyCost = bNextLevelCost(cy, nextCYLevel);
+        const netSaving = timeSaved - cyCost.time;
+        if (netSaving > 300) {
+          suggestions.push({
+            scope: 'buildings',
+            title: `Upgrade Construction Yard to Lv${nextCYLevel} first`,
+            body: `+5% build speed. Costs ${fmtS(cyCost.time)} but saves ~${fmtS(timeSaved)} on your other ${nonCYItems.length} build steps. Net: ~${fmtS(netSaving)} saved.`,
+            action: `addToBuildPlan('construction_yard')`,
+            netSaving,
+          });
+        }
+      }
+    }
+  }
+
+  // ── Research speed ──
+  if (plan.length >= 2) {
+    const planKeys = new Set(plan.map(p => p.key));
+    const totalResearchTime = plan.reduce((s, p) => s + (p.time || 0), 0);
+    const candidates = researchData.filter(r =>
+      !r.isMaxed && r.level < r.maxLevel &&
+      !planKeys.has(r.key) &&
+      (r.effects || []).some(e => e.type === 'research_speed_bonus')
+    );
+    for (const r of candidates) {
+      const bonus = (r.effects || []).find(e => e.type === 'research_speed_bonus')?.value || 0;
+      const nextLevel = r.level + 1;
+      const timeSaved = Math.round(totalResearchTime * bonus);
+      const levels = computeLevels(r);
+      const lvlData = levels[nextLevel - 1];
+      if (!lvlData) continue;
+      const netSaving = timeSaved - lvlData.time;
+      if (netSaving > 300) {
+        suggestions.push({
+          scope: 'research',
+          title: `Research ${r.name} Lv${nextLevel} first`,
+          body: `+${Math.round(bonus * 100)}% research speed. Costs ${fmtS(lvlData.time)} but saves ~${fmtS(timeSaved)} on your ${plan.length} queued items. Net: ~${fmtS(netSaving)} saved.`,
+          action: `addToPlan('${r.id}')`,
+          netSaving,
+        });
+      }
+    }
+  }
+
+  return suggestions.sort((a, b) => b.netSaving - a.netSaving);
+}
+
+function renderPlanSuggestions(scope) {
+  const el = document.getElementById(`plan-suggestions-${scope}`);
+  if (!el) return;
+  const all = computePlanSuggestions();
+  const relevant = scope === 'combined' ? all : all.filter(s => s.scope === scope);
+  if (!relevant.length) { el.innerHTML = ''; return; }
+  el.innerHTML = relevant.slice(0, 2).map(s => `
+    <div class="plan-suggestion">
+      <div class="sug-body">
+        <div class="sug-title">💡 ${s.title}</div>
+        <div>${s.body}</div>
+      </div>
+      <button class="sug-add" onclick="${s.action}">+ Add</button>
+    </div>
+  `).join('');
+}
+
 function renderPlanner() {
   // Update header count badge
   const countEl = document.getElementById('planner-count');
@@ -1730,6 +1834,7 @@ function renderPlanner() {
   document.getElementById('planner-totals-top').style.display = '';
   document.getElementById('totals-body-top').innerHTML = totalsHtml;
 
+  renderPlanSuggestions('research');
   savePlan();
 }
 
@@ -2251,6 +2356,7 @@ function renderBuildPlanner() {
   document.getElementById('build-planner-totals-top').style.display = '';
   document.getElementById('build-totals-body-top').innerHTML = totalsHtml;
 
+  renderPlanSuggestions('buildings');
   saveBuildPlan();
   renderPlannerCombined();
 }
@@ -2330,6 +2436,7 @@ function renderPlannerCombined() {
     ${combRateRows ? `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">${combRateRows}</div>` : ''}
     <div style="font-size:11px;color:var(--muted);margin-top:8px;">${plan.length} research + ${buildPlan.length} building steps</div>
   `;
+  renderPlanSuggestions('combined');
 }
 
 // ── Timer ticker ──────────────────────────────────────────────────────────────
