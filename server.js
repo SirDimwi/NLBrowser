@@ -474,6 +474,52 @@ app.post('/export', requireAuth, async (req, res) => {
   }
 });
 
+// ── Debug endpoints ───────────────────────────────────────────────────────────
+
+app.get('/debug/speed-effects', requireAuth, async (req, res) => {
+  try {
+    const planetId = req.session.user?.planetId;
+    const [resData, planetData] = await Promise.all([
+      req.api.research(),
+      planetId ? req.api.planet(planetId) : Promise.resolve(null),
+    ]);
+
+    const research = resData.research || [];
+    const speedResearch = research
+      .filter(r => (r.effects || []).some(e => /speed|time/i.test(e.type)))
+      .map(r => ({
+        key: r.key, name: r.name, branch: r.branch, category: r.category,
+        level: r.level, maxLevel: r.maxLevel,
+        effects: (r.effects || []).filter(e => /speed|time/i.test(e.type)),
+      }));
+
+    const allEffectTypes = [...new Set(
+      research.flatMap(r => (r.effects || []).map(e => e.type))
+    )].sort();
+
+    const rawBuildings = Array.isArray(planetData?.buildings) ? planetData.buildings
+      : Array.isArray(planetData?.planet?.buildings) ? planetData.planet.buildings : [];
+    const speedBuildings = rawBuildings
+      .filter(b => /speed|lab|construct/i.test(b.definition?.key || '') || b.definition?.buildSpeedBonus || b.definition?.researchSpeedBonus)
+      .map(b => ({
+        key: b.definition?.key, name: b.definition?.name, level: b.level,
+        definition: b.definition,
+      }));
+
+    const p = planetData?.planet?.planet || planetData?.planet || planetData || {};
+
+    res.json({
+      buildSpeedMult: p.buildSpeedMult ?? null,
+      allResearchEffectTypes: allEffectTypes,
+      speedResearch,
+      speedBuildings,
+      rawBuildingKeys: rawBuildings.map(b => b.definition?.key).filter(Boolean),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Suggestion box ────────────────────────────────────────────────────────────
 
 const SLUR_FILTER = [
