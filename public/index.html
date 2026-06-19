@@ -1672,22 +1672,33 @@ function computePlanSuggestions() {
     const cy = (planetContext.buildings || {})['construction_yard'];
     if (cy && cy.maxLevel > 0) {
       const queuedCY = buildPlan.filter(p => p.key === 'construction_yard').length;
-      const nextCYLevel = cy.level + queuedCY + 1;
-      if (nextCYLevel <= cy.maxLevel) {
+      const startLevel = cy.level + queuedCY + 1;
+      if (startLevel <= cy.maxLevel) {
         const currentMult = planetContext.buildSpeedMult || 1;
         const nonCYItems = buildPlan.filter(p => p.key !== 'construction_yard');
         const nonCYTime = nonCYItems.reduce((s, p) => s + (p.time || 0), 0);
-        const timeSaved = Math.round(nonCYTime * 0.05 / currentMult);
-        const cyCost = bNextLevelCost(cy, nextCYLevel);
-        const netSaving = timeSaved - cyCost.time;
-        if (netSaving > 300) {
-          suggestions.push({
-            scope: 'buildings',
-            title: `Upgrade Construction Yard to Lv${nextCYLevel} first`,
-            body: `+5% build speed. Costs ${fmtS(cyCost.time)} but saves ~${fmtS(timeSaved)} on your other ${nonCYItems.length} build steps. Net: ~${fmtS(netSaving)} saved.`,
-            action: `addToBuildPlan('construction_yard')`,
-            netSaving,
-          });
+        // Each CY level saves the same fixed amount (savings are linear in mult reduction)
+        const perLevelSaving = nonCYTime * 0.05 / currentMult;
+        let bestK = 0, cumulativeCost = 0;
+        for (let lvl = startLevel; lvl <= cy.maxLevel; lvl++) {
+          const levelCost = bNextLevelCost(cy, lvl).time;
+          if (perLevelSaving > levelCost) { bestK++; cumulativeCost += levelCost; }
+          else break;
+        }
+        if (bestK > 0) {
+          const cumulativeSaving = Math.round(perLevelSaving * bestK);
+          const netSaving = cumulativeSaving - cumulativeCost;
+          if (netSaving > 300) {
+            const targetLevel = startLevel + bestK - 1;
+            const lvlLabel = bestK === 1 ? `Lv${startLevel}` : `Lv${startLevel}–${targetLevel} (${bestK} levels)`;
+            suggestions.push({
+              scope: 'buildings',
+              title: `Upgrade Construction Yard to ${lvlLabel} first`,
+              body: `+5% build speed per level. Saves ~${fmtS(cumulativeSaving)} on your ${nonCYItems.length} build steps, costs ${fmtS(cumulativeCost)} total. Net: ~${fmtS(netSaving)} saved.`,
+              action: `addToBuildPlan('construction_yard')`,
+              netSaving,
+            });
+          }
         }
       }
     }
@@ -1704,20 +1715,30 @@ function computePlanSuggestions() {
     );
     for (const r of candidates) {
       const bonus = (r.effects || []).find(e => e.type === 'research_speed_bonus')?.value || 0;
-      const nextLevel = r.level + 1;
-      const timeSaved = Math.round(totalResearchTime * bonus);
+      const perLevelSaving = totalResearchTime * bonus;
       const levels = computeLevels(r);
-      const lvlData = levels[nextLevel - 1];
-      if (!lvlData) continue;
-      const netSaving = timeSaved - lvlData.time;
-      if (netSaving > 300) {
-        suggestions.push({
-          scope: 'research',
-          title: `Research ${r.name} Lv${nextLevel} first`,
-          body: `+${Math.round(bonus * 100)}% research speed. Costs ${fmtS(lvlData.time)} but saves ~${fmtS(timeSaved)} on your ${plan.length} queued items. Net: ~${fmtS(netSaving)} saved.`,
-          action: `addToPlan('${r.id}')`,
-          netSaving,
-        });
+      const startIndex = r.level; // levels[] is 0-indexed by level-1, so level N is at index N
+      let bestK = 0, cumulativeCost = 0;
+      for (let k = 0; k < r.maxLevel - r.level; k++) {
+        const lvlData = levels[startIndex + k];
+        if (!lvlData) break;
+        if (perLevelSaving > lvlData.time) { bestK++; cumulativeCost += lvlData.time; }
+        else break;
+      }
+      if (bestK > 0) {
+        const cumulativeSaving = Math.round(perLevelSaving * bestK);
+        const netSaving = cumulativeSaving - cumulativeCost;
+        if (netSaving > 300) {
+          const targetLevel = r.level + bestK;
+          const lvlLabel = bestK === 1 ? `Lv${r.level + 1}` : `Lv${r.level + 1}–${targetLevel} (${bestK} levels)`;
+          suggestions.push({
+            scope: 'research',
+            title: `Research ${r.name} ${lvlLabel} first`,
+            body: `+${Math.round(bonus * 100)}% research speed per level. Saves ~${fmtS(cumulativeSaving)} on your ${plan.length} queued items, costs ${fmtS(cumulativeCost)} total. Net: ~${fmtS(netSaving)} saved.`,
+            action: `addToPlan('${r.id}')`,
+            netSaving,
+          });
+        }
       }
     }
   }
