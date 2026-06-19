@@ -623,7 +623,7 @@
 </div>
 
 <script>
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 
 let researchData = [];
 let refreshTimer = null;
@@ -2573,6 +2573,19 @@ function hasConsent() {
 // ── Patch notes ───────────────────────────────────────────────────────────────
 
 const PATCH_NOTES = [
+  {
+    version: '1.2.0',
+    date: '2026-06-19',
+    notes: [
+      'Guest mode — browse the full research and building tree and open shared builds without logging in; costs shown at default ("level 0") rates',
+      'Shareable build links — one click creates a short URL that loads your exact plan for anyone who opens it, no login required to view',
+      'Unified plan view — research and building queues merged into a single scrollable plan; the three-tab layout is replaced with one combined list',
+      'Plan suggestions — the planner recommends Construction Yard upgrades and research speed boosts that would save the most time on your current queue',
+      'Planner open by default — the sidebar is visible on load',
+      'Share modal redesigned — link creation is the primary action; copy-as-text now has a format selector (Plain text, Discord/Reddit, Forum BBCode)',
+      'Import updated — accepts a share link, a bare slug, or a legacy nlb: code in the same field',
+    ],
+  },
   {
     version: '1.1.0',
     date: '2026-06-18',
