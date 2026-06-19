@@ -585,7 +585,7 @@ function isFlagged(text) {
   return SLUR_FILTER.some(re => re.test(text));
 }
 
-app.post('/suggest', requireAuth, async (req, res) => {
+app.post('/suggest', async (req, res) => {
   const text = (req.body?.text ?? '').trim();
   if (!text || text.length > 500) return res.status(400).json({ error: 'Invalid suggestion' });
 
