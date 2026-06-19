@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { createClient } = require('./client');
 
 const app = express();
@@ -517,6 +518,45 @@ app.get('/debug/speed-effects', requireAuth, async (req, res) => {
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Share links ───────────────────────────────────────────────────────────────
+
+function planSlug(json) {
+  return crypto.createHash('sha256').update(json).digest('base64url').slice(0, 10);
+}
+const SLUG_RE = /^[A-Za-z0-9_-]{6,16}$/;
+
+app.post('/share', requireAuth, async (req, res) => {
+  const raw = req.body?.payload;
+  if (!raw || typeof raw !== 'object') return res.status(400).json({ error: 'Invalid payload' });
+
+  const n = String(raw.n || 'Plan').slice(0, 80);
+  const r = (Array.isArray(raw.r) ? raw.r : []).filter(e => Array.isArray(e) && typeof e[0]==='string' && typeof e[1]==='number').slice(0, 500);
+  const b = (Array.isArray(raw.b) ? raw.b : []).filter(e => Array.isArray(e) && typeof e[0]==='string' && typeof e[1]==='number').slice(0, 500);
+
+  if (!r.length && !b.length) return res.status(400).json({ error: 'Plan is empty' });
+
+  const payload = JSON.stringify({ v: 1, n, r, b });
+  if (payload.length > 50_000) return res.status(413).json({ error: 'Plan too large' });
+
+  const slug = planSlug(payload);
+  const result = await redisCmd('SET', `share:${slug}`, payload);
+  if (result !== 'OK') return res.status(500).json({ error: 'Storage failed' });
+
+  res.json({ slug });
+});
+
+app.get('/share/:slug', async (req, res) => {
+  const { slug } = req.params;
+  if (!SLUG_RE.test(slug)) return res.status(400).json({ error: 'Invalid link' });
+  const data = await redisCmd('GET', `share:${slug}`);
+  if (!data) return res.status(404).json({ error: 'Shared plan not found' });
+  try {
+    res.json(JSON.parse(data));
+  } catch {
+    res.status(500).json({ error: 'Corrupt plan data' });
   }
 });
 

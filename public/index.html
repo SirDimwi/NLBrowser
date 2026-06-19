@@ -180,8 +180,6 @@
   #delete-confirm-panel.visible { display:flex; }
   #share-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:600; display:flex; align-items:center; justify-content:center; }
   #share-modal-backdrop.hidden { display:none; }
-  .share-tab-btn { flex:1; background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:10px 6px; font-size:12px; font-weight:600; cursor:pointer; text-transform:uppercase; letter-spacing:.4px; }
-  .share-tab-btn.active { color:var(--accent2); border-bottom-color:var(--accent2); }
   .share-code-box { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--muted); font-family:monospace; font-size:11px; padding:10px; resize:none; outline:none; word-break:break-all; }
 
   /* Suggestion modal */
@@ -505,47 +503,48 @@
 
 <!-- Share modal -->
 <div id="share-modal-backdrop" class="hidden">
-  <div class="modal-box" style="max-width:480px;">
+  <div class="modal-box" style="max-width:480px;max-height:90vh;overflow-y:auto;">
     <h3 style="margin-bottom:4px;">Share Plan</h3>
-    <p id="share-plan-label" style="font-size:12px;color:var(--muted);margin-bottom:14px;"></p>
-    <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px;">
-      <button class="share-tab-btn active" id="stab-text" onclick="setShareTab('text')">Readable</button>
-      <button class="share-tab-btn" id="stab-code" onclick="setShareTab('code')">Share Code</button>
+    <p id="share-plan-label" style="font-size:12px;color:var(--muted);margin-bottom:16px;"></p>
+
+    <!-- 1. Share link (primary) -->
+    <div style="margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:600;color:var(--accent2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Share Link</div>
+      <button id="share-link-btn" class="refresh-btn" onclick="createShareLink()" style="width:100%;padding:8px;border-color:var(--accent2);color:var(--accent2);">Create share link</button>
+      <div id="share-link-result" style="display:none;margin-top:8px;">
+        <div style="display:flex;gap:6px;">
+          <input id="share-link-url" type="text" readonly style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:monospace;font-size:11px;padding:8px;outline:none;min-width:0;">
+          <button class="refresh-btn" onclick="copyShareLink()" style="flex-shrink:0;padding:8px 12px;">Copy</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:5px;">Anyone who opens this link loads your exact plan.</div>
+      </div>
+      <div id="share-link-status" style="font-size:12px;margin-top:6px;min-height:16px;"></div>
     </div>
-    <!-- Readable tab -->
-    <div id="share-content-text" style="max-height:60vh;overflow-y:auto;padding-right:2px;">
-      <div style="margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:600;color:var(--accent2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Discord / Reddit</div>
-        <textarea id="share-text-discord" class="share-code-box" rows="5" readonly></textarea>
-        <button class="refresh-btn" onclick="copyShareText('share-text-discord')" style="margin-top:6px;width:100%;padding:7px;">Copy</button>
+
+    <!-- 2. Copy as text (secondary) -->
+    <div style="margin-bottom:20px;border-top:1px solid var(--border);padding-top:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Copy as Text</div>
+        <select id="share-text-format" onchange="refreshShareText()" style="background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;padding:2px 6px;cursor:pointer;">
+          <option value="plain">Plain text</option>
+          <option value="discord">Discord / Reddit</option>
+          <option value="bbcode">Forum (BBCode)</option>
+        </select>
       </div>
-      <div style="margin-bottom:16px;">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Plain Text</div>
-        <textarea id="share-text-plain" class="share-code-box" rows="3" readonly></textarea>
-        <button class="refresh-btn" onclick="copyShareText('share-text-plain')" style="margin-top:6px;width:100%;padding:7px;">Copy</button>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Forum (BBCode)</div>
-        <textarea id="share-text-bbcode" class="share-code-box" rows="5" readonly></textarea>
-        <button class="refresh-btn" onclick="copyShareText('share-text-bbcode')" style="margin-top:6px;width:100%;padding:7px;">Copy</button>
-      </div>
+      <textarea id="share-text-box" class="share-code-box" rows="4" readonly></textarea>
+      <button class="refresh-btn" onclick="copyShareText('share-text-box')" style="margin-top:6px;width:100%;padding:7px;">Copy</button>
     </div>
-    <!-- Code tab -->
-    <div id="share-content-code" style="display:none;">
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <button class="refresh-btn" id="scope-research" onclick="setShareScope('research')" style="flex:1;font-size:11px;">Research</button>
-        <button class="refresh-btn active" id="scope-both" onclick="setShareScope('both')" style="flex:1;font-size:11px;border-color:var(--accent2);color:var(--accent2);">Both</button>
-        <button class="refresh-btn" id="scope-buildings" onclick="setShareScope('buildings')" style="flex:1;font-size:11px;">Buildings</button>
-      </div>
-      <textarea id="share-code-output" class="share-code-box" rows="4" readonly></textarea>
-      <button class="refresh-btn" onclick="copyShareText('share-code-output')" style="margin-top:10px;width:100%;padding:8px;">Copy Code</button>
-      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600;">Import a plan</div>
-        <textarea id="share-import-input" class="share-code-box" rows="3" placeholder="Paste a share code here…" style="color:var(--text);"></textarea>
+
+    <!-- 3. Import (demoted) -->
+    <details style="border-top:1px solid var(--border);padding-top:14px;">
+      <summary style="font-size:12px;color:var(--muted);font-weight:600;cursor:pointer;user-select:none;">Import a plan from a link or code</summary>
+      <div style="margin-top:10px;">
+        <textarea id="share-import-input" class="share-code-box" rows="3" placeholder="Paste a share link, slug, or nlb: code…" style="color:var(--text);"></textarea>
         <button class="refresh-btn" onclick="importPlanCode()" style="margin-top:8px;width:100%;padding:8px;border-color:var(--accent2);color:var(--accent2);">Import as New Plan</button>
         <div id="share-import-status" style="font-size:12px;margin-top:8px;min-height:18px;"></div>
       </div>
-    </div>
+    </details>
+
     <button onclick="closeShareModal()" style="margin-top:16px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;width:100%;text-align:center;">Close</button>
   </div>
 </div>
@@ -818,16 +817,20 @@ function confirmDeletePlan(id) {
 
 // ── Share / Import ────────────────────────────────────────────────────────────
 
-let shareScope = 'both';
-let shareTabActive = 'text';
-
 function openShareModal() {
   const active = savedPlans.find(p => p.id === activePlanId);
   document.getElementById('share-plan-label').textContent = active ? `"${active.name}"` : '';
+  const linkBtn = document.getElementById('share-link-btn');
+  linkBtn.style.display = '';
+  linkBtn.disabled = false;
+  linkBtn.textContent = 'Create share link';
+  document.getElementById('share-link-result').style.display = 'none';
+  document.getElementById('share-link-url').value = '';
+  document.getElementById('share-link-status').textContent = '';
   document.getElementById('share-import-status').textContent = '';
   document.getElementById('share-import-input').value = '';
-  setShareTab('text');
-  setShareScope('both');
+  document.getElementById('share-text-format').value = 'plain';
+  refreshShareText();
   document.getElementById('share-modal-backdrop').classList.remove('hidden');
 }
 
@@ -835,61 +838,81 @@ function closeShareModal() {
   document.getElementById('share-modal-backdrop').classList.add('hidden');
 }
 
-function setShareTab(tab) {
-  shareTabActive = tab;
-  document.getElementById('share-content-text').style.display = tab === 'text' ? '' : 'none';
-  document.getElementById('share-content-code').style.display = tab === 'code' ? '' : 'none';
-  document.getElementById('stab-text').classList.toggle('active', tab === 'text');
-  document.getElementById('stab-code').classList.toggle('active', tab === 'code');
-  if (tab === 'text') refreshShareText();
-  else refreshShareCode();
+function buildSharePayload() {
+  const active = savedPlans.find(p => p.id === activePlanId);
+  return {
+    v: 1,
+    n: active?.name || 'Plan',
+    r: (active?.research  || []).map(p => [p.key, p.toLevel]),
+    b: (active?.buildings || []).map(p => [p.key, p.toLevel]),
+  };
 }
 
-function setShareScope(scope) {
-  shareScope = scope;
-  ['research','both','buildings'].forEach(s => {
-    const btn = document.getElementById('scope-'+s);
-    const on = s === scope;
-    btn.style.borderColor = on ? 'var(--accent2)' : '';
-    btn.style.color = on ? 'var(--accent2)' : '';
-  });
-  refreshShareCode();
+async function createShareLink() {
+  const linkBtn    = document.getElementById('share-link-btn');
+  const linkResult = document.getElementById('share-link-result');
+  const linkStatus = document.getElementById('share-link-status');
+  const payload = buildSharePayload();
+  if (!payload.r.length && !payload.b.length) {
+    linkStatus.style.color = 'var(--red)';
+    linkStatus.textContent = 'Plan is empty — add items first.';
+    return;
+  }
+  linkBtn.disabled = true;
+  linkBtn.textContent = 'Creating…';
+  linkStatus.textContent = '';
+  try {
+    const res = await fetch('/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload }),
+    });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error || res.status); }
+    const { slug } = await res.json();
+    document.getElementById('share-link-url').value = `${location.origin}/?plan=${slug}`;
+    linkBtn.style.display = 'none';
+    linkResult.style.display = '';
+  } catch (e) {
+    linkStatus.style.color = 'var(--red)';
+    linkStatus.textContent = 'Failed to create link: ' + e.message;
+    linkBtn.disabled = false;
+    linkBtn.textContent = 'Create share link';
+  }
 }
 
-function refreshShareText() {
+function copyShareLink() {
+  const el = document.getElementById('share-link-url');
+  el.select();
+  try { document.execCommand('copy'); } catch(e) { navigator.clipboard?.writeText(el.value); }
+}
+
+function buildPlanText(format) {
   const active = savedPlans.find(p => p.id === activePlanId);
   const name   = active?.name || 'Plan';
   const rItems = active?.research  || [];
   const bItems = active?.buildings || [];
-
-  // Discord / Reddit (markdown)
-  const mdSections = [];
-  if (rItems.length) mdSections.push(`**Research**\n${rItems.map(p=>`· ${p.name} Lv${p.toLevel}`).join('\n')}`);
-  if (bItems.length) mdSections.push(`**Buildings**\n${bItems.map(p=>`· ${p.name} Lv${p.toLevel}`).join('\n')}`);
-  document.getElementById('share-text-discord').value =
-    mdSections.length ? `**${name}**\n\n${mdSections.join('\n\n')}` : '(empty plan)';
-
-  // Plain text
-  const plainParts = [];
-  if (rItems.length) plainParts.push(`Research: ${rItems.map(p=>`${p.name} Lv${p.toLevel}`).join(', ')}`);
-  if (bItems.length) plainParts.push(`Buildings: ${bItems.map(p=>`${p.name} Lv${p.toLevel}`).join(', ')}`);
-  document.getElementById('share-text-plain').value =
-    plainParts.length ? `${name}\n\n${plainParts.join('\n')}` : '(empty plan)';
-
-  // Forum BBCode
-  const bbSections = [];
-  if (rItems.length) bbSections.push(`[b]Research[/b]\n[list]\n${rItems.map(p=>`[*]${p.name} Lv${p.toLevel}`).join('\n')}\n[/list]`);
-  if (bItems.length) bbSections.push(`[b]Buildings[/b]\n[list]\n${bItems.map(p=>`[*]${p.name} Lv${p.toLevel}`).join('\n')}\n[/list]`);
-  document.getElementById('share-text-bbcode').value =
-    bbSections.length ? `[b]${name}[/b]\n\n${bbSections.join('\n\n')}` : '(empty plan)';
+  if (!rItems.length && !bItems.length) return '(empty plan)';
+  if (format === 'discord') {
+    const s = [];
+    if (rItems.length) s.push(`**Research**\n${rItems.map(p=>`· ${p.name} Lv${p.toLevel}`).join('\n')}`);
+    if (bItems.length) s.push(`**Buildings**\n${bItems.map(p=>`· ${p.name} Lv${p.toLevel}`).join('\n')}`);
+    return `**${name}**\n\n${s.join('\n\n')}`;
+  }
+  if (format === 'bbcode') {
+    const s = [];
+    if (rItems.length) s.push(`[b]Research[/b]\n[list]\n${rItems.map(p=>`[*]${p.name} Lv${p.toLevel}`).join('\n')}\n[/list]`);
+    if (bItems.length) s.push(`[b]Buildings[/b]\n[list]\n${bItems.map(p=>`[*]${p.name} Lv${p.toLevel}`).join('\n')}\n[/list]`);
+    return `[b]${name}[/b]\n\n${s.join('\n\n')}`;
+  }
+  const parts = [];
+  if (rItems.length) parts.push(`Research: ${rItems.map(p=>`${p.name} Lv${p.toLevel}`).join(', ')}`);
+  if (bItems.length) parts.push(`Buildings: ${bItems.map(p=>`${p.name} Lv${p.toLevel}`).join(', ')}`);
+  return `${name}\n\n${parts.join('\n')}`;
 }
 
-function refreshShareCode() {
-  const active = savedPlans.find(p => p.id === activePlanId);
-  const r = shareScope !== 'buildings' ? (active?.research||[]).map(p => [p.key, p.toLevel]) : [];
-  const b = shareScope !== 'research'  ? (active?.buildings||[]).map(p => [p.key, p.toLevel]) : [];
-  const payload = { v:1, n: active?.name || 'Plan', r, b };
-  document.getElementById('share-code-output').value = 'nlb:' + btoa(JSON.stringify(payload));
+function refreshShareText() {
+  const format = document.getElementById('share-text-format').value;
+  document.getElementById('share-text-box').value = buildPlanText(format);
 }
 
 function copyShareText(elId) {
@@ -898,41 +921,68 @@ function copyShareText(elId) {
   try { document.execCommand('copy'); } catch(e) { navigator.clipboard?.writeText(el.value); }
 }
 
-function importPlanCode() {
+function importPlanPayload(data) {
+  const rItems = (data.r||[]).flatMap(([key, lvl]) => {
+    const r = researchData.find(r => r.key === key);
+    return r ? [makePlanItem(r, lvl)] : [];
+  });
+  const bItems = (data.b||[]).flatMap(([key, lvl]) => {
+    const b = (planetContext.buildings||{})[key];
+    return b ? [makeBuildPlanItem(b, lvl)] : [];
+  });
+  const newPlan = { id: String(Date.now()), name: data.n || generatePlanName(),
+    research: rItems, buildings: bItems, updatedAt: new Date().toISOString() };
+  savedPlans.push(newPlan);
+  persistPlans();
+  return newPlan;
+}
+
+async function importPlanCode() {
   const raw = document.getElementById('share-import-input').value.trim();
   const statusEl = document.getElementById('share-import-status');
-  if (!raw) { statusEl.style.color='var(--red)'; statusEl.textContent = 'Paste a share code first.'; return; }
+  if (!raw) { statusEl.style.color='var(--red)'; statusEl.textContent = 'Paste a share link or code first.'; return; }
+  statusEl.style.color = 'var(--muted)';
+  statusEl.textContent = 'Importing…';
   try {
-    const stripped = raw.startsWith('nlb:') ? raw.slice(4) : raw;
-    const data = JSON.parse(atob(stripped));
-    if (data.v !== 1) throw new Error('unknown version');
-
-    // Rebuild research items
-    const rItems = (data.r||[]).flatMap(([key, lvl]) => {
-      const r = researchData.find(r => r.key === key);
-      if (!r) return [];
-      const item = makePlanItem(r, lvl);
-      return [item];
-    });
-
-    // Rebuild building items
-    const bItems = (data.b||[]).flatMap(([key, lvl]) => {
-      const b = (planetContext.buildings||{})[key];
-      if (!b) return [];
-      return [makeBuildPlanItem(b, lvl)];
-    });
-
-    const newPlan = { id: String(Date.now()), name: data.n || generatePlanName(),
-      research: rItems, buildings: bItems, updatedAt: new Date().toISOString() };
-    savedPlans.push(newPlan);
-    persistPlans();
-
+    let slugMatch = raw.match(/[?&]plan=([A-Za-z0-9_-]{6,16})/);
+    if (!slugMatch && /^[A-Za-z0-9_-]{6,16}$/.test(raw)) slugMatch = [null, raw];
+    let data;
+    if (slugMatch) {
+      const res = await fetch(`/share/${slugMatch[1]}`);
+      if (res.status === 404) throw new Error('Shared plan not found.');
+      if (!res.ok) throw new Error('Server error.');
+      data = await res.json();
+    } else {
+      const stripped = raw.startsWith('nlb:') ? raw.slice(4) : raw;
+      data = JSON.parse(atob(stripped));
+      if (data.v !== 1) throw new Error('unknown version');
+    }
+    const newPlan = importPlanPayload(data);
     statusEl.style.color = 'var(--green)';
-    statusEl.textContent = `Imported "${newPlan.name}" — ${rItems.length + bItems.length} items. Load it from My Plans.`;
+    statusEl.textContent = `Imported "${newPlan.name}" — ${newPlan.research.length + newPlan.buildings.length} items. Load it from My Plans.`;
     document.getElementById('share-import-input').value = '';
-  } catch(e) {
+  } catch (e) {
     statusEl.style.color = 'var(--red)';
-    statusEl.textContent = 'Invalid share code.';
+    statusEl.textContent = (e.message === 'Shared plan not found.' || e.message === 'Server error.') ? e.message : 'Invalid share link or code.';
+  }
+}
+
+async function maybeLoadSharedPlan(params) {
+  const slug = params.get('plan');
+  if (!slug) return;
+  history.replaceState({}, '', location.pathname);
+  try {
+    const res = await fetch(`/share/${slug}`);
+    if (!res.ok) {
+      showToast(res.status === 404 ? 'That shared plan could not be found.' : 'Could not load shared plan.');
+      return;
+    }
+    const data = await res.json();
+    const newPlan = importPlanPayload(data);
+    loadSavedPlan(newPlan.id);
+    showToast(`Loaded shared plan "${newPlan.name}"`);
+  } catch {
+    showToast('Could not load shared plan.');
   }
 }
 
@@ -2395,6 +2445,7 @@ async function boot() {
   initPlans();
   await loadPlanets();
   applyResearch();
+  await maybeLoadSharedPlan(params);
   startTimers();
   refreshTimer = setTimeout(refreshAll, 5 * 60 * 1000);
 }
