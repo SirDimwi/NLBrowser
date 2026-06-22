@@ -7,7 +7,8 @@ const crypto = require('crypto');
 const { createClient } = require('./client');
 
 const app = express();
-const EXPORT_PATH = path.join(__dirname, 'nexus_export.json');
+const EXPORT_PATH    = path.join(__dirname, 'nexus_export.json');
+const DASHBOARD_HTML = fs.readFileSync(path.join(__dirname, 'views', 'dashboard.html'), 'utf8');
 
 // ── Usage tracking (Upstash Redis) ───────────────────────────────────────────
 
@@ -645,6 +646,14 @@ app.get('/stats', async (req, res) => {
   if (!key && process.env.NODE_ENV === 'production') return res.status(403).json({ error: 'Not configured' });
   if (key && req.query.key !== key) return res.status(401).json({ error: 'Unauthorized' });
   res.json(await computeStats());
+});
+
+app.get('/dashboard', (req, res) => {
+  const key = process.env.STATS_KEY;
+  if (!key && process.env.NODE_ENV === 'production') return res.status(403).send('Forbidden');
+  if (key && req.query.key !== key) return res.status(401).send('Unauthorized');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(DASHBOARD_HTML);
 });
 
 const PORT = process.env.PORT || 3000;

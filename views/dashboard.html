@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NL Browser · Telemetry</title>
+  <style>
+    :root {
+      --bg:     #0d1117;
+      --card:   #161b22;
+      --border: #30363d;
+      --text:   #c9d1d9;
+      --muted:  #8b949e;
+      --green:  #39d353;
+      --amber:  #f59e0b;
+      --red:    #f85149;
+      --blue:   #58a6ff;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Cascadia Code', 'SF Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 14px;
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .logo { font-size: 13px; color: var(--muted); letter-spacing: 0.4px; }
+    .logo em { color: var(--blue); font-style: normal; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    #ts { font-size: 11px; color: var(--muted); }
+    #btn-refresh {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s;
+    }
+    #btn-refresh:hover { border-color: var(--blue); color: var(--blue); }
+
+    /* ── Hero ─────────────────────────────────────────────────────────── */
+    .hero {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 14px;
+      display: grid;
+      grid-template-columns: minmax(120px, auto) 1fr;
+      gap: 28px;
+      align-items: center;
+    }
+    @media (max-width: 500px) { .hero { grid-template-columns: 1fr; } }
+
+    .dau-lbl { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .dau-num  { font-size: 80px; line-height: 1; color: var(--green); font-weight: 700; }
+    .mau-row  { font-size: 12px; color: var(--muted); margin-top: 8px; }
+    .mau-num  { color: var(--text); font-weight: 600; }
+    .delta    { font-size: 12px; margin-top: 4px; }
+    .delta.up   { color: var(--green); }
+    .delta.down { color: var(--red); }
+    .delta.flat { color: var(--muted); }
+
+    .chart-title { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+    .chart { display: flex; align-items: flex-end; gap: 3px; height: 76px; }
+    .bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+    .bar { width: 100%; background: var(--green); opacity: 0.65; border-radius: 2px 2px 0 0; min-height: 2px; transition: opacity .15s; }
+    .bar:hover { opacity: 1; }
+    .bar-lbl { font-size: 8px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
+
+    /* ── Tile grid ────────────────────────────────────────────────────── */
+    .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (min-width: 560px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+
+    .tile {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .tile-wide { grid-column: 1 / -1; }
+    .tile-lbl {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+    .tile-val { font-size: 30px; font-weight: 700; line-height: 1.1; }
+    .tile-val.green { color: var(--green); }
+    .tile-val.amber { color: var(--amber); }
+    .tile-val.red   { color: var(--red); }
+    .tile-val.muted { color: var(--muted); }
+    .tile-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+    /* Auth */
+    .auth-pair { display: flex; gap: 20px; }
+    .auth-num  { font-size: 28px; font-weight: 700; }
+    .auth-num.ok   { color: var(--green); }
+    .auth-num.fail { color: var(--red); }
+    .auth-lbl  { font-size: 10px; color: var(--muted); }
+
+    /* View mode */
+    .seg-track   { height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); display: flex; margin: 10px 0 8px; }
+    .seg-legend  { display: flex; gap: 12px; flex-wrap: wrap; }
+    .seg-item    { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+    .seg-dot     { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Retention */
+    .ret-row  { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 8px; }
+    .ret-cell { text-align: center; }
+    .ret-lbl  { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+    .ret-num  { font-size: 28px; font-weight: 700; }
+    .ret-note { font-size: 10px; color: var(--muted); font-style: italic; margin-top: 8px; }
+
+    /* States */
+    .state     { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 40px; text-align: center; color: var(--muted); }
+    .state.err { border-color: var(--red); color: var(--red); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">NL Browser · <em>Telemetry</em></div>
+    <div class="header-right">
+      <span id="ts"></span>
+      <button id="btn-refresh" onclick="load()">&#8635; Refresh</button>
+    </div>
+  </header>
+  <div id="root"><div class="state">Loading&hellip;</div></div>
+
+  <script>
+    var KEY = new URLSearchParams(location.search).get('key') || '';
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function fmtSecs(n) {
+      n = parseInt(n) || 0;
+      if (n <= 0) return '0s';
+      var m = Math.floor(n / 60), s = n % 60;
+      return m > 0 ? m + 'm ' + s + 's' : s + 's';
+    }
+
+    function deepGet(obj) {
+      var keys = Array.prototype.slice.call(arguments, 1);
+      return keys.reduce(function(o, k) { return o != null ? o[k] : undefined; }, obj);
+    }
+
+    function renderChart(daily) {
+      var entries = Object.entries(daily || {}).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; }).slice(-14);
+      if (!entries.length) {
+        return '<div style="font-size:11px;color:var(--muted);padding:8px 0">No daily data yet</div>';
+      }
+      var max = Math.max.apply(null, entries.map(function(e) { return e[1] || 0; }).concat([1]));
+      return (
+        '<div class="chart-title">Daily Active Users (14d)</div>' +
+        '<div class="chart">' +
+        entries.map(function(e) {
+          var d = e[0], v = e[1] || 0;
+          var h = Math.max(2, Math.round((v / max) * 70));
+          return (
+            '<div class="bar-col" title="' + esc(d) + ': ' + v + '">' +
+            '<div class="bar" style="height:' + h + 'px"></div>' +
+            '<div class="bar-lbl">' + esc(d.slice(5)) + '</div>' +
+            '</div>'
+          );
+        }).join('') +
+        '</div>'
+      );
+    }
+
+    function renderBounce(rate) {
+      if (rate == null) return { cls: 'muted', txt: '&mdash;', sub: 'no sessions recorded yet' };
+      if (rate >= 70)   return { cls: 'amber', txt: rate + '%', sub: 'high &mdash; check engagement' };
+      return               { cls: 'green', txt: rate + '%', sub: 'healthy range' };
+    }
+
+    function renderViews(v) {
+      var cards   = parseInt(deepGet(v, 'cards'))   || 0;
+      var columns = parseInt(deepGet(v, 'columns')) || 0;
+      var table   = parseInt(deepGet(v, 'table'))   || 0;
+      var total   = cards + columns + table;
+      if (!total) {
+        return '<div class="tile-val muted" style="font-size:14px;line-height:1.5">No view<br>events yet</div>';
+      }
+      var pct = function(n) { return Math.round(n / total * 100); };
+      return (
+        '<div class="seg-track">' +
+        '<div style="width:' + pct(cards)   + '%;background:var(--blue)"></div>' +
+        '<div style="width:' + pct(columns) + '%;background:var(--green)"></div>' +
+        '<div style="width:' + pct(table)   + '%;background:var(--amber)"></div>' +
+        '</div>' +
+        '<div class="seg-legend">' +
+        '<div class="seg-item"><div class="seg-dot" style="background:var(--blue)"></div>cards ' + cards + '</div>' +
+        '<div class="seg-item"><div class="seg-dot" style="background:var(--green)"></div>cols ' + columns + '</div>' +
+        '<div class="seg-item"><div class="seg-dot" style="background:var(--amber)"></div>table ' + table + '</div>' +
+        '</div>'
+      );
+    }
+
+    function renderRetention(r) {
+      var d1  = parseInt(deepGet(r, 'd1'))  || 0;
+      var d7  = parseInt(deepGet(r, 'd7'))  || 0;
+      var d30 = parseInt(deepGet(r, 'd30')) || 0;
+      var basis = deepGet(r, 'basis') || 'consented users';
+      var note = (d1 + d7 + d30 === 0)
+        ? 'No consented cohort yet &mdash; retention counts only users who opt in to tracking'
+        : 'basis: ' + esc(basis);
+      return (
+        '<div class="ret-row">' +
+        '<div class="ret-cell"><div class="ret-lbl">D1</div><div class="ret-num">' + d1 + '</div></div>' +
+        '<div class="ret-cell"><div class="ret-lbl">D7</div><div class="ret-num">' + d7 + '</div></div>' +
+        '<div class="ret-cell"><div class="ret-lbl">D30</div><div class="ret-num">' + d30 + '</div></div>' +
+        '</div>' +
+        '<div class="ret-note">' + note + '</div>'
+      );
+    }
+
+    function render(d) {
+      var dau   = parseInt(d.dau) || 0;
+      var mau   = parseInt(d.mau) || 0;
+      var daily = d.daily || {};
+
+      // Delta vs previous recorded active day
+      var keys = Object.keys(daily).sort();
+      var deltaHtml = '<div class="delta flat">no prior data</div>';
+      if (keys.length >= 2) {
+        var prevDate = keys[keys.length - 2];
+        var prev = parseInt(daily[prevDate]) || 0;
+        var diff = dau - prev;
+        var cls  = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+        var sign = diff > 0 ? '+' : '';
+        deltaHtml = '<div class="delta ' + cls + '">' + sign + diff + ' vs ' + esc(prevDate.slice(5)) + ' (' + prev + ')</div>';
+      }
+
+      var bn   = renderBounce(deepGet(d, 'session', 'bounceRate'));
+      var avg  = parseInt(deepGet(d, 'session', 'avgDurationSecs')) || 0;
+      var adds = parseInt(deepGet(d, 'planner', 'totalAdds'))       || 0;
+      var ut   = parseInt(deepGet(d, 'planner', 'usersToday'))      || 0;
+      var ok   = parseInt(deepGet(d, 'auth', 'successToday'))       || 0;
+      var fail = parseInt(deepGet(d, 'auth', 'failToday'))          || 0;
+
+      var authBlock = (ok === 0 && fail === 0)
+        ? '<div class="tile-val muted" style="font-size:14px;line-height:1.6">No attempts<br>today</div>'
+        : (
+          '<div class="auth-pair">' +
+          '<div><div class="auth-num ok">'   + ok   + '</div><div class="auth-lbl">success</div></div>' +
+          '<div><div class="auth-num fail">' + fail + '</div><div class="auth-lbl">fail</div></div>' +
+          '</div>'
+        );
+
+      document.getElementById('ts').textContent = new Date().toLocaleTimeString();
+
+      return (
+        '<div class="hero">' +
+          '<div>' +
+            '<div class="dau-lbl">DAU</div>' +
+            '<div class="dau-num">' + dau + '</div>' +
+            '<div class="mau-row">MAU <span class="mau-num">' + mau + '</span></div>' +
+            deltaHtml +
+          '</div>' +
+          '<div>' + renderChart(daily) + '</div>' +
+        '</div>' +
+
+        '<div class="tiles">' +
+
+          '<div class="tile">' +
+            '<div class="tile-lbl">Avg Session</div>' +
+            '<div class="tile-val green">' + fmtSecs(avg) + '</div>' +
+            '<div class="tile-sub">' + (avg > 0 ? 'across all sessions' : 'no sessions yet') + '</div>' +
+          '</div>' +
+
+          '<div class="tile">' +
+            '<div class="tile-lbl">Bounce Rate</div>' +
+            '<div class="tile-val ' + bn.cls + '">' + bn.txt + '</div>' +
+            '<div class="tile-sub">' + bn.sub + '</div>' +
+          '</div>' +
+
+          '<div class="tile">' +
+            '<div class="tile-lbl">Planner Adds</div>' +
+            '<div class="tile-val">' + adds + '</div>' +
+            '<div class="tile-sub">' + ut + ' unique today</div>' +
+          '</div>' +
+
+          '<div class="tile">' +
+            '<div class="tile-lbl">Auth Today</div>' +
+            authBlock +
+          '</div>' +
+
+          '<div class="tile">' +
+            '<div class="tile-lbl">View Mode</div>' +
+            renderViews(d.views) +
+          '</div>' +
+
+          '<div class="tile tile-wide">' +
+            '<div class="tile-lbl">Retention</div>' +
+            renderRetention(d.retention) +
+          '</div>' +
+
+        '</div>'
+      );
+    }
+
+    function load() {
+      var root = document.getElementById('root');
+      root.innerHTML = '<div class="state">Loading&hellip;</div>';
+      var url = '/stats' + (KEY ? '?key=' + encodeURIComponent(KEY) : '');
+      fetch(url).then(function(res) {
+        if (res.status === 401 || res.status === 403) {
+          root.innerHTML = '<div class="state err">401 Unauthorized &mdash; check your ?key= parameter</div>';
+          return null;
+        }
+        if (!res.ok) {
+          root.innerHTML = '<div class="state err">Error ' + res.status + ': ' + esc(res.statusText) + '</div>';
+          return null;
+        }
+        return res.json();
+      }).then(function(data) {
+        if (data) root.innerHTML = render(data);
+      }).catch(function(e) {
+        root.innerHTML = '<div class="state err">Fetch failed: ' + esc(e && e.message ? e.message : 'network error') + '</div>';
+      });
+    }
+
+    load();
+  </script>
+</body>
+</html>
