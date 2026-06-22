@@ -564,9 +564,17 @@ app.get('/catalogue', (req, res) => {
 
 // ── Share links ───────────────────────────────────────────────────────────────
 
-function planSlug(json) {
-  return crypto.createHash('sha256').update(json).digest('base64url').slice(0, 10);
+// 9 random bytes → 12-char base64url slug. SET NX ensures uniqueness; retry on collision.
+async function mintSlug(payload) {
+  for (let i = 0; i < 5; i++) {
+    const slug = crypto.randomBytes(9).toString('base64url');
+    const result = await redisCmd('SET', `share:${slug}`, payload, 'NX');
+    if (result === 'OK') return slug;
+  }
+  return null;
 }
+
+// Accept both legacy 10-char content-hash slugs and new 12-char random slugs.
 const SLUG_RE = /^[A-Za-z0-9_-]{6,16}$/;
 
 app.post('/share', requireAuth, async (req, res) => {
@@ -582,9 +590,8 @@ app.post('/share', requireAuth, async (req, res) => {
   const payload = JSON.stringify({ v: 1, n, r, b });
   if (payload.length > 50_000) return res.status(413).json({ error: 'Plan too large' });
 
-  const slug = planSlug(payload);
-  const result = await redisCmd('SET', `share:${slug}`, payload);
-  if (result !== 'OK') return res.status(500).json({ error: 'Storage failed' });
+  const slug = await mintSlug(payload);
+  if (!slug) return res.status(500).json({ error: 'Could not mint a unique slug' });
 
   res.json({ slug });
 });

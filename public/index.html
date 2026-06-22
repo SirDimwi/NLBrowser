@@ -1624,6 +1624,7 @@ function makePlanItem(r, lvl) {
     requirements: r.requirements || [],
     requiredLabLevel: r.requiredLabLevel || 0,
     eraUnlocked: r.eraUnlocked,
+    track: 'research', planetId: null,
   };
 }
 
@@ -1957,6 +1958,7 @@ function makeBuildPlanItem(b, lvl) {
     fromLevel: lvl - 1, toLevel: lvl, maxLevel: b.maxLevel || 0,
     disabledReason: b.disabledReason || null,
     requirementsMet: b.requirementsMet !== false,
+    track: 'building', planetId: planetContext.planetId || null,
     ...cost,
   };
 }
@@ -2321,14 +2323,27 @@ function renderPlannerCombined() {
     </div>`;
   });
 
-  itemsEl.innerHTML = [...researchHtml, ...buildHtml].join('');
+  // Lane headers — research is account-wide, building is per-planet
+  const laneHd = 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:4px 4px 8px;display:flex;justify-content:space-between;align-items:center;';
+  const researchHeader = plan.length
+    ? `<div style="${laneHd}"><span>⚗ Research · Account-wide</span><span>${plan.length} item${plan.length!==1?'s':''}</span></div>`
+    : '';
+  const buildHeader = buildPlan.length
+    ? `<div style="${laneHd}${plan.length ? 'border-top:1px solid var(--border);margin-top:8px;padding-top:10px;' : ''}"><span>🏗 Building · Planet</span><span>${buildPlan.length} item${buildPlan.length!==1?'s':''}</span></div>`
+    : '';
+
+  itemsEl.innerHTML = researchHeader + researchHtml.join('') + buildHeader + buildHtml.join('');
 
   const allCosts = [...plan, ...buildPlan];
   const totOre  = allCosts.reduce((s,p) => s + (p.ore||0), 0);
   const totSil  = allCosts.reduce((s,p) => s + (p.sil||0), 0);
   const totHyd  = allCosts.reduce((s,p) => s + (p.hyd||0), 0);
   const totAly  = allCosts.reduce((s,p) => s + (p.aly||0), 0);
-  const totTime = allCosts.reduce((s,p) => s + (p.time||0), 0);
+
+  // Tracks run in parallel: total time is the longer of the two lanes, not their sum.
+  const researchTime = plan.reduce((s,p) => s + (p.time||0), 0);
+  const buildTime    = buildPlan.reduce((s,p) => s + (p.time||0), 0);
+  const parallelEta  = Math.max(researchTime, buildTime);
 
   const rateDeltas = {};
   for (const item of buildPlan) {
@@ -2355,12 +2370,18 @@ function renderPlannerCombined() {
       return `<div class="total-row"><span style="color:${r.color}">${r.icon} Production Δ</span><span style="color:${d>0?'var(--green)':'var(--red)'}">${d>0?'+':''}${fmtNum(d)}/s</span></div>`;
     }).join('');
 
+  const timeRows = (plan.length && buildPlan.length)
+    ? `<div class="total-time"><span style="color:var(--muted)">⚗ Research</span><span>${fmtTime(researchTime)}</span></div>
+       <div class="total-row"><span style="color:var(--muted)">🏗 Building</span><span>${fmtTime(buildTime)}</span></div>
+       <div class="total-row" style="padding-top:8px;border-top:1px solid var(--border);margin-top:4px;font-weight:600;"><span>⏱ Parallel ETA</span><span>${fmtTime(parallelEta)}</span></div>`
+    : `<div class="total-time"><span style="color:var(--muted)">⏱ ${plan.length ? 'Research' : 'Building'} Time</span><span>${fmtTime(parallelEta)}</span></div>`;
+
   const totalsHtml = `
     ${totOre ? `<div class="total-row"><span style="color:var(--ore)">⛏ Ore</span><span>${fmt(totOre)}</span></div>` : ''}
     ${totSil ? `<div class="total-row"><span style="color:var(--sil)">💠 Silicates</span><span>${fmt(totSil)}</span></div>` : ''}
     ${totHyd ? `<div class="total-row"><span style="color:var(--hyd)">💧 Hydrogen</span><span>${fmt(totHyd)}</span></div>` : ''}
     ${totAly ? `<div class="total-row"><span style="color:var(--aly)">⚙ Alloys</span><span>${fmt(totAly)}</span></div>` : ''}
-    <div class="total-time"><span style="color:var(--muted)">⏱ Total Time</span><span>${fmtTime(totTime)}</span></div>
+    ${timeRows}
     ${rateRows ? `<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">${rateRows}</div>` : ''}
   `;
 
