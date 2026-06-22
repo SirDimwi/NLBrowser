@@ -1818,7 +1818,7 @@ function setMainTab(tab) {
   document.getElementById('buildings-main').style.display = tab === 'buildings' ? 'block' : 'none';
   document.querySelectorAll('.main-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-  if (tab === 'buildings' && planetContext.planetId) applyBuildings();
+  if (tab === 'buildings') applyBuildings();
 }
 
 function setPlannerTab(tab) {
@@ -2106,6 +2106,10 @@ function bEffectsHtml(b) {
 }
 
 function applyBuildings() {
+  if (!planetContext.planetId) {
+    document.getElementById('buildings-output').innerHTML = '<div class="plan-empty" style="padding:32px;text-align:center;">Log in to view your planet\'s buildings</div>';
+    return;
+  }
   const allBuildings = planetContext.buildings || {};
   let list = Object.values(allBuildings);
   bState.search = document.getElementById('b-search')?.value.toLowerCase() || '';
