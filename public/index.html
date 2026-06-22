@@ -2106,7 +2106,7 @@ function bEffectsHtml(b) {
 }
 
 function applyBuildings() {
-  if (!planetContext.planetId) {
+  if (!planetContext.planetId && !Object.keys(planetContext.buildings || {}).length) {
     document.getElementById('buildings-output').innerHTML = '<div class="plan-empty" style="padding:32px;text-align:center;">Log in to view your planet\'s buildings</div>';
     return;
   }
