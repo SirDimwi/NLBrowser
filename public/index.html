@@ -111,7 +111,7 @@
   #research-main  { flex: 1; min-width: 0; padding: 20px 24px; }
   #buildings-main { flex: 1; min-width: 0; padding: 20px 24px; display: none; }
   #planner-sidebar {
-    width: 320px; flex-shrink: 0;
+    width: 400px; flex-shrink: 0;
     background: var(--panel); border-left: 1px solid var(--border);
     height: calc(100vh - 57px); position: sticky; top: 57px;
     display: flex; flex-direction: column; overflow: hidden;
@@ -252,9 +252,9 @@
   .tl-card:hover { border-color: var(--accent2); }
   .tl-card.tl-warn { border-color: #3a2e00; }
   .tl-card.tl-blocked-card { border-color: #3a1a1a; }
-  .tl-card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 112px; }
+  .tl-card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
   .tl-card-meta { color: var(--muted); font-size: 10px; margin-top: 2px; white-space: nowrap; }
-  .tl-binding { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; color: var(--yellow); background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); border-radius: 3px; padding: 1px 5px; margin-top: 3px; white-space: nowrap; max-width: 112px; overflow: hidden; text-overflow: ellipsis; }
+  .tl-binding { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; color: var(--yellow); background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); border-radius: 3px; padding: 1px 5px; margin-top: 3px; white-space: nowrap; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
   .tl-blocked-section { padding: 6px 10px 10px; border-top: 1px solid var(--border); }
 </style>
 </head>
@@ -2313,11 +2313,29 @@ function renderPlannerCombined() {
 
 // ── Dependency-aware scheduler (NLB-026) ──────────────────────────────────────
 
+// Within a lane, the levels of one key must run lowest-first. Reassign each key's
+// items in ascending level order into the slots that key already occupies, so a
+// prerequisite insertion (which prepends) can't leave Lv3 ahead of Lv1. Distinct
+// keys never move — only same-key level order is corrected.
+function normalizeLevelOrder(arr) {
+  const slots = new Map();
+  arr.forEach((item, i) => {
+    if (!slots.has(item.key)) slots.set(item.key, []);
+    slots.get(item.key).push(i);
+  });
+  const out = arr.slice();
+  for (const positions of slots.values()) {
+    if (positions.length < 2) continue;
+    const ordered = positions.map(i => arr[i]).sort((a, b) => (a.toLevel || 0) - (b.toLevel || 0));
+    positions.forEach((pos, k) => { out[pos] = ordered[k]; });
+  }
+  return out;
+}
+
 function computeSchedule() {
-  const allItems = [
-    ...plan.map(p => p.track ? p : { ...p, track: 'research' }),
-    ...buildPlan.map(p => p.track ? p : { ...p, track: 'building' }),
-  ];
+  const rItems = normalizeLevelOrder(plan.map(p => p.track ? p : { ...p, track: 'research' }));
+  const bItems = normalizeLevelOrder(buildPlan.map(p => p.track ? p : { ...p, track: 'building' }));
+  const allItems = [...rItems, ...bItems];
   if (!allItems.length) return { schedule: new Map(), moments: [0], totalEta: 0, rTime: 0, bTime: 0 };
 
   const bldg = planetContext.buildings || {};
@@ -2372,8 +2390,8 @@ function computeSchedule() {
     inDeg.set(tu, inDeg.get(tu) + 1);
   }
 
-  for (let i = 1; i < plan.length; i++) addEdge(plan[i - 1], plan[i]);
-  for (let i = 1; i < buildPlan.length; i++) addEdge(buildPlan[i - 1], buildPlan[i]);
+  for (let i = 1; i < rItems.length; i++) addEdge(rItems[i - 1], rItems[i]);
+  for (let i = 1; i < bItems.length; i++) addEdge(bItems[i - 1], bItems[i]);
 
   for (const item of allItems) {
     const ct = crossTrackDepsOf(item);
@@ -2504,8 +2522,8 @@ function completePrerequisites() {
     showToast('No missing prerequisites — plan is already complete.');
     return;
   }
-  plan = [...newResearch, ...plan];
-  buildPlan = [...newBuilding, ...buildPlan];
+  plan = normalizeLevelOrder([...newResearch, ...plan]);
+  buildPlan = normalizeLevelOrder([...newBuilding, ...buildPlan]);
   const total = newResearch.length + newBuilding.length;
   showToast(`Added ${total} missing prerequisite${total !== 1 ? 's' : ''}.`);
   renderPlanner();
@@ -2571,13 +2589,13 @@ function renderTimeline({ schedule, moments }) {
       ? `<div style="font-size:10px;color:var(--red);margin-top:2px">Reqs unmet</div>` : '';
     // Directional arrow points toward the other lane: ↗ for research (dep is in building lane, right), ↖ for building (dep is in research lane, left)
     const bndTag = s.binding
-      ? `<div class="tl-binding">${isR ? '↗' : '↖'} after ${trunc(s.binding.name, 14)} (${s.binding.track === 'research' ? 'R' : 'B'})</div>`
+      ? `<div class="tl-binding">${isR ? '↗' : '↖'} after ${trunc(s.binding.name, 18)} (${s.binding.track === 'research' ? 'R' : 'B'})</div>`
       : '';
     const rmFn = isR ? `removeFromPlan(${item.uid})` : `removeFromBuildPlan(${item.uid})`;
     return `<div class="tl-card${warnCls}" title="${item.name} Lv${item.toLevel} · ${dur} · ends ${endsAt}">
       <div style="display:flex;align-items:flex-start;gap:3px">
         <div style="flex:1;min-width:0">
-          <div class="tl-card-name" style="color:${accent}">${icon} ${trunc(item.name, 16)} <span style="color:var(--muted);font-weight:400">Lv${item.toLevel}</span></div>
+          <div class="tl-card-name" style="color:${accent}">${icon} ${trunc(item.name, 22)} <span style="color:var(--muted);font-weight:400">Lv${item.toLevel}</span></div>
           <div class="tl-card-meta">${dur} · →${endsAt}</div>
           ${warnTag}${bndTag}
         </div>
