@@ -714,8 +714,8 @@ function initPlans() {
 
   // Load queues into memory
   const active = savedPlans.find(p => p.id === activePlanId);
-  plan      = active?.research  || [];
-  buildPlan = active?.buildings || [];
+  plan      = (active?.research  || []).map(p => ({ ...p, track: 'research' }));
+  buildPlan = (active?.buildings || []).map(p => ({ ...p, track: 'building' }));
 
   persistPlans();
   updatePlanNameInput();
