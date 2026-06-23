@@ -714,8 +714,8 @@ function initPlans() {
 
   // Load queues into memory
   const active = savedPlans.find(p => p.id === activePlanId);
-  plan      = (active?.research  || []).map(p => ({ ...p, track: 'research' }));
-  buildPlan = (active?.buildings || []).map(p => ({ ...p, track: 'building' }));
+  plan      = active?.research  || [];
+  buildPlan = active?.buildings || [];
 
   persistPlans();
   updatePlanNameInput();
@@ -2347,7 +2347,10 @@ function renderPlannerCombined() {
 // ── Dependency-aware scheduler (NLB-026) ──────────────────────────────────────
 
 function computeSchedule() {
-  const allItems = [...plan, ...buildPlan];
+  const allItems = [
+    ...plan.map(p => p.track ? p : { ...p, track: 'research' }),
+    ...buildPlan.map(p => p.track ? p : { ...p, track: 'building' }),
+  ];
   if (!allItems.length) return { schedule: new Map(), moments: [0], totalEta: 0, rTime: 0, bTime: 0 };
 
   const bldg = planetContext.buildings || {};
@@ -2571,6 +2574,7 @@ function renderTimeline({ schedule, moments }) {
 
   const finalMoment = moments[moments.length - 1] || 0;
 
+  const planUids = new Set(plan.map(p => p.uid));
   const scheduledR = plan.filter(p => { const s = schedule.get(p.uid); return s && !s.blocked; });
   const scheduledB = buildPlan.filter(p => { const s = schedule.get(p.uid); return s && !s.blocked; });
   const blockedItems = [...plan, ...buildPlan].filter(p => schedule.get(p.uid) && schedule.get(p.uid).blocked);
@@ -2588,9 +2592,8 @@ function renderTimeline({ schedule, moments }) {
     atB.get(start).push(item);
   }
 
-  function cardHtml(item) {
+  function cardHtml(item, isR) {
     const s = schedule.get(item.uid);
-    const isR = item.track === 'research';
     const accent = isR ? 'var(--accent2)' : 'var(--ore)';
     const icon = isR ? '⚗' : '🏗';
     const dur = durFmt(item.time || 0), endsAt = fmtT(s.finish);
@@ -2621,8 +2624,8 @@ function renderTimeline({ schedule, moments }) {
   // Build rows: one per moment (header first, then one row per moment in order)
   const rows = moments.map(m => {
     const isFinal = m === finalMoment && m > 0;
-    const rCards = (atR.get(m) || []).map(cardHtml).join('');
-    const bCards = (atB.get(m) || []).map(cardHtml).join('');
+    const rCards = (atR.get(m) || []).map(item => cardHtml(item, true)).join('');
+    const bCards = (atB.get(m) || []).map(item => cardHtml(item, false)).join('');
     const spineLabel = isFinal
       ? `${fmtT(m)}<br><span style="font-size:9px;opacity:.7">plan complete</span>`
       : fmtT(m);
@@ -2637,7 +2640,7 @@ function renderTimeline({ schedule, moments }) {
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--red);margin-bottom:6px">⛔ Blocked / unreachable</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px">
           ${blockedItems.map(p => {
-            const isR = p.track === 'research';
+            const isR = planUids.has(p.uid);
             const rmFn = isR ? `removeFromPlan(${p.uid})` : `removeFromBuildPlan(${p.uid})`;
             return `<div class="tl-card tl-blocked-card">
               <div style="display:flex;align-items:flex-start;gap:4px">
