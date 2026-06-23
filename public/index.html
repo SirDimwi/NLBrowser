@@ -176,8 +176,8 @@
   .saved-plan-meta { font-size:11px; color:var(--muted); flex-shrink:0; }
   .plan-delete-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0; line-height:1; }
   .plan-delete-btn:hover { color:var(--red); }
-  #delete-confirm-panel { display:none; flex:1; flex-direction:column; align-items:center; justify-content:center; padding:24px; background:rgba(30,10,10,.97); }
-  #delete-confirm-panel.visible { display:flex; }
+  #delete-confirm-panel, #clear-confirm-panel { display:none; flex:1; flex-direction:column; align-items:center; justify-content:center; padding:24px; background:rgba(30,10,10,.97); }
+  #delete-confirm-panel.visible, #clear-confirm-panel.visible { display:flex; }
   #share-modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:600; display:flex; align-items:center; justify-content:center; }
   #share-modal-backdrop.hidden { display:none; }
   .share-code-box { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--muted); font-family:monospace; font-size:11px; padding:10px; resize:none; outline:none; word-break:break-all; }
@@ -610,10 +610,21 @@
     </div>
   </div>
 
+  <!-- Clear plan confirm panel -->
+  <div id="clear-confirm-panel">
+    <div style="text-align:center;width:100%;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--red);margin-bottom:8px;">Clear Plan</div>
+      <div id="clear-confirm-count" style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;"></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:24px;">This empties the current plan. It cannot be undone.</div>
+      <button onclick="clearActivePlan();hidePlanOverlays();" style="width:100%;background:var(--red);border:none;color:#fff;font-size:14px;font-weight:700;padding:14px;border-radius:8px;cursor:pointer;margin-bottom:10px;">Clear Plan</button>
+      <button onclick="hidePlanOverlays()" style="width:100%;background:none;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:10px;border-radius:8px;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+
   <!-- Plan actions row -->
   <div class="planner-tabs" id="planner-tabs-row" style="justify-content:flex-end;padding:6px 8px;gap:6px;">
     <button onclick="completePrerequisites()" style="background:none;border:1px solid var(--accent2);color:var(--accent2);font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;margin-right:auto;transition:background .15s;" onmouseover="this.style.background='rgba(6,182,212,.1)'" onmouseout="this.style.background=''">Complete prerequisites</button>
-    <button id="planner-clear-btn" onclick="clearActivePlan()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;transition:color .15s,border-color .15s;" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='';this.style.borderColor=''">Clear</button>
+    <button id="planner-clear-btn" onclick="showClearConfirm()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;transition:color .15s,border-color .15s;" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='';this.style.borderColor=''">Clear</button>
   </div>
 
   <!-- Unified plan panel -->
@@ -786,9 +797,20 @@ function togglePlansPanel() {
   }
 }
 
+function showClearConfirm() {
+  const count = plan.length + buildPlan.length;
+  if (!count) return;
+  document.getElementById('clear-confirm-count').textContent = `${count} item${count !== 1 ? 's' : ''} will be removed`;
+  document.getElementById('plans-panel').classList.remove('visible');
+  document.getElementById('clear-confirm-panel').classList.add('visible');
+  document.getElementById('planner-tabs-row').style.display = 'none';
+  document.querySelectorAll('.planner-panel').forEach(p => p.style.display = 'none');
+}
+
 function hidePlanOverlays() {
   document.getElementById('plans-panel').classList.remove('visible');
   document.getElementById('delete-confirm-panel').classList.remove('visible');
+  document.getElementById('clear-confirm-panel').classList.remove('visible');
   document.getElementById('planner-tabs-row').style.display = '';
   document.querySelectorAll('.planner-panel').forEach(p => p.style.display = '');
   document.querySelectorAll('.planner-panel:not(.active)').forEach(p => p.style.display = 'none');
@@ -1308,19 +1330,6 @@ function buildResearchIndex() {
   return idx;
 }
 
-function resolvePrereqChain(r, idx, visited = new Set()) {
-  const missing = [];
-  for (const req of (r.requirements || [])) {
-    if (req.type !== 'research') continue;
-    const dep = idx[req.key];
-    if (!dep || visited.has(dep.id)) continue;
-    visited.add(dep.id);
-    if (dep.level >= dep.maxLevel || dep.isMaxed) continue;
-    missing.push(...resolvePrereqChain(dep, idx, visited));
-    missing.push(dep);
-  }
-  return missing;
-}
 
 async function refreshAll() {
   document.getElementById('last-updated').textContent = 'Refreshing...';
@@ -1651,20 +1660,13 @@ function addToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r || planFull(r)) return;
 
-  const idx = buildResearchIndex();
-  const prereqs = resolvePrereqChain(r, idx);
-  const alreadyQueued = new Set(plan.map(p => p.key));
-  const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
-  for (const dep of toAdd) plan.push(makePlanItem(dep, nextPlanLevel(dep)));
+  // Add only the single next level. Prerequisites are filled in on demand via
+  // the "Complete prerequisites" button — the plan stays exactly as picked.
   plan.push(makePlanItem(r, nextPlanLevel(r)));
-  if (toAdd.length) showToast(`Added "${r.name}" + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
-  const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
   sessionHadActivity = true;
   if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add', ...(isGuest && {anonId: getOrCreateAnonId()})}) }).catch(()=>{});
-  setPlannerTab(bAdded > 0 ? 'combined' : 'research');
   if (!plannerOpen) togglePlanner();
   renderPlanner();
-  renderBuildPlanner();
   applyResearch();
 }
 
@@ -1679,11 +1681,8 @@ function addAllToPlan(researchId) {
   const r = researchData.find(r => r.id == researchId);
   if (!r) return;
 
-  const idx = buildResearchIndex();
-  const prereqs = resolvePrereqChain(r, idx);
-  const alreadyQueued = new Set(plan.map(p => p.key));
-  const toAdd = prereqs.filter(dep => !alreadyQueued.has(dep.key) && !planFull(dep));
-  for (const dep of toAdd) plan.push(makePlanItem(dep, nextPlanLevel(dep)));
+  // Queue every remaining level of this one research. Cross-track prerequisites
+  // are filled in on demand via the "Complete prerequisites" button.
   let added = 0;
   while (!planFull(r)) {
     const lvl = nextPlanLevel(r);
@@ -1691,13 +1690,10 @@ function addAllToPlan(researchId) {
     plan.push(makePlanItem(r, lvl));
     added++;
   }
-  if (added || toAdd.length) {
-    if (toAdd.length) showToast(`Added "${r.name}" (all levels) + ${toAdd.length} prerequisite${toAdd.length > 1 ? 's' : ''}`);
-    const bAdded = addBuildingPrereqsForResearch([r, ...toAdd]);
-    setPlannerTab(bAdded > 0 ? 'combined' : 'research');
+  if (added) {
+    sessionHadActivity = true;
     if (!plannerOpen) togglePlanner();
     renderPlanner();
-    renderBuildPlanner();
     applyResearch();
   }
 }
@@ -1852,35 +1848,6 @@ function pruneEmptyActivePlan() {
     savedPlans = savedPlans.filter(sp => sp.id !== activePlanId);
     persistPlans();
   }
-}
-
-function addBuildingPrereqsForResearch(researchItems) {
-  const buildings = planetContext.buildings || {};
-  const needed = new Map(); // buildingKey → targetLevel
-
-  for (const r of researchItems) {
-    if (r.requiredLabLevel > 0) {
-      const lab = Object.values(buildings).find(b => b.key === 'research_lab');
-      if (lab) needed.set(lab.key, Math.max(needed.get(lab.key) || 0, r.requiredLabLevel));
-    }
-    for (const req of (r.requirements || [])) {
-      if (req.type !== 'building' || !req.key) continue;
-      const b = buildings[req.key];
-      if (!b) continue;
-      needed.set(req.key, Math.max(needed.get(req.key) || 0, req.level || 1));
-    }
-  }
-
-  let added = 0;
-  for (const [key, targetLevel] of needed) {
-    const b = buildings[key];
-    if (!b) continue;
-    while (bNextPlanLevel(b) <= targetLevel) {
-      buildPlan.push(makeBuildPlanItem(b, bNextPlanLevel(b)));
-      added++;
-    }
-  }
-  return added;
 }
 
 function clearActivePlan() {
