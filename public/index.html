@@ -2378,41 +2378,70 @@ function computeSchedule() {
     return deps;
   }
 
-  // Build dependency graph (same-track order + cross-track)
-  const inDeg = new Map(allItems.map(i => [uidOf(i), 0]));
-  const fwd = new Map(allItems.map(i => [uidOf(i), new Set()]));
+  // Build dependency graph: soft same-track ordering + hard cross-track gates.
+  const inDeg  = new Map(allItems.map(i => [uidOf(i), 0]));
+  const hardIn = new Map(allItems.map(i => [uidOf(i), 0]));        // cross-track only
+  const fwd    = new Map(allItems.map(i => [uidOf(i), new Map()])); // toUid -> isHard
   const ctDeps = new Map();
 
-  function addEdge(from, to) {
-    const fu = uidOf(from), tu = uidOf(to);
-    if (fwd.get(fu).has(tu)) return;
-    fwd.get(fu).add(tu);
+  function addEdge(from, to, hard) {
+    const fu = uidOf(from), tu = uidOf(to), adj = fwd.get(fu);
+    if (adj.has(tu)) {
+      if (hard && !adj.get(tu)) { adj.set(tu, true); hardIn.set(tu, hardIn.get(tu) + 1); }
+      return;
+    }
+    adj.set(tu, hard);
     inDeg.set(tu, inDeg.get(tu) + 1);
+    if (hard) hardIn.set(tu, hardIn.get(tu) + 1);
   }
 
-  for (let i = 1; i < rItems.length; i++) addEdge(rItems[i - 1], rItems[i]);
-  for (let i = 1; i < bItems.length; i++) addEdge(bItems[i - 1], bItems[i]);
+  for (let i = 1; i < rItems.length; i++) addEdge(rItems[i - 1], rItems[i], false);
+  for (let i = 1; i < bItems.length; i++) addEdge(bItems[i - 1], bItems[i], false);
 
   for (const item of allItems) {
     const ct = crossTrackDepsOf(item);
     ctDeps.set(uidOf(item), ct);
-    for (const dep of ct) addEdge(dep, item);
+    for (const dep of ct) addEdge(dep, item, true);
   }
 
-  // Kahn's topological sort
+  // Kahn's topological sort. The same-track edges encode the queue's array order,
+  // which isn't guaranteed to agree with the cross-track gates — when they
+  // conflict the naive sort stalls and would dump everything as "blocked". So on a
+  // stall we release the earliest unplaced item whose *cross-track* deps are all
+  // met, breaking only a soft same-track edge. Only a genuine cross-track cycle
+  // (nothing left with its hard deps satisfied) stays blocked.
+  const indexOf   = new Map(allItems.map((it, i) => [uidOf(it), i]));
   const remaining = new Map(allItems.map(i => [uidOf(i), inDeg.get(uidOf(i))]));
+  const remHard   = new Map(allItems.map(i => [uidOf(i), hardIn.get(uidOf(i))]));
+  const placed = new Set();
   const queue = allItems.filter(i => remaining.get(uidOf(i)) === 0);
   const order = [];
 
-  while (queue.length) {
-    queue.sort((a, b) => (a.track === 'research' ? 0 : 1) - (b.track === 'research' ? 0 : 1));
-    const item = queue.shift();
+  function release(item) {
+    placed.add(uidOf(item));
     order.push(item);
-    for (const depUid of fwd.get(uidOf(item))) {
-      const nd = remaining.get(depUid) - 1;
-      remaining.set(depUid, nd);
-      if (nd === 0) queue.push(uidToItem.get(depUid));
+    for (const [toUid, hard] of fwd.get(uidOf(item))) {
+      remaining.set(toUid, remaining.get(toUid) - 1);
+      if (hard) remHard.set(toUid, remHard.get(toUid) - 1);
+      if (remaining.get(toUid) === 0 && !placed.has(toUid)) queue.push(uidToItem.get(toUid));
     }
+  }
+
+  while (placed.size < allItems.length) {
+    let item = null;
+    queue.sort((a, b) => (a.track === 'research' ? 0 : 1) - (b.track === 'research' ? 0 : 1));
+    while (queue.length) {
+      const cand = queue.shift();
+      if (!placed.has(uidOf(cand))) { item = cand; break; }
+    }
+    if (!item) {
+      const breakable = allItems
+        .filter(i => !placed.has(uidOf(i)) && remHard.get(uidOf(i)) === 0)
+        .sort((a, b) => indexOf.get(uidOf(a)) - indexOf.get(uidOf(b)));
+      if (!breakable.length) break;   // genuine cross-track cycle → stays blocked
+      item = breakable[0];
+    }
+    release(item);
   }
 
   const orderedSet = new Set(order.map(uidOf));
@@ -2439,7 +2468,13 @@ function computeSchedule() {
     else bClock = itemFinish;
   }
 
-  for (const item of cycleBlocked) schedule.set(uidOf(item), { blocked: true });
+  for (const item of cycleBlocked) {
+    const stuck = (ctDeps.get(uidOf(item)) || []).filter(d => !orderedSet.has(uidOf(d)));
+    schedule.set(uidOf(item), {
+      blocked: true,
+      reason: stuck.length ? `circular dependency with ${stuck.map(d => d.name).join(', ')}` : 'circular dependency',
+    });
+  }
 
   const momentSet = new Set([0]);
   for (const [, s] of schedule) {
@@ -2623,14 +2658,18 @@ function renderTimeline({ schedule, moments }) {
   const blockedHtml = blockedItems.length
     ? `<div class="tl-blocked-section">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--red);margin-bottom:6px">⛔ Blocked / unreachable</div>
-        <div style="display:flex;flex-wrap:wrap;gap:4px">
+        <div style="display:flex;flex-direction:column;gap:4px">
           ${blockedItems.map(p => {
             const isR = planUids.has(p.uid);
             const rmFn = isR ? `removeFromPlan(${p.uid})` : `removeFromBuildPlan(${p.uid})`;
+            const reason = schedule.get(p.uid)?.reason || 'unresolved dependency';
             return `<div class="tl-card tl-blocked-card">
               <div style="display:flex;align-items:flex-start;gap:4px">
-                <div><div class="tl-card-name">${isR ? '⚗' : '🏗'} ${p.name} <span style="font-weight:400;color:var(--muted)">Lv${p.toLevel}</span></div></div>
-                <button class="plan-item-remove" onclick="${rmFn}" style="font-size:14px;line-height:1;padding:0">×</button>
+                <div style="flex:1;min-width:0">
+                  <div class="tl-card-name">${isR ? '⚗' : '🏗'} ${p.name} <span style="font-weight:400;color:var(--muted)">Lv${p.toLevel}</span></div>
+                  <div style="font-size:10px;color:var(--red);margin-top:2px;white-space:normal">${reason}</div>
+                </div>
+                <button class="plan-item-remove" onclick="${rmFn}" style="font-size:14px;line-height:1;padding:0;flex-shrink:0">×</button>
               </div>
             </div>`;
           }).join('')}
