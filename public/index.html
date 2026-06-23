@@ -1656,13 +1656,28 @@ function makePlanItem(r, lvl) {
   };
 }
 
-function addToPlan(researchId) {
+// Earliest index in a lane where an item can sit while still following its
+// same-track prerequisites and any lower levels of itself already queued. Front of
+// the lane when it has neither — so a smart-placed speed boost lands ahead of the
+// work it accelerates instead of being appended uselessly at the end.
+function earliestValidIndex(item, lane) {
+  const reqKeys = new Set((item.requirements || []).map(rq => rq.key));
+  let idx = 0;
+  lane.forEach((p, i) => {
+    if (p.key === item.key || reqKeys.has(p.key)) idx = Math.max(idx, i + 1);
+  });
+  return idx;
+}
+
+function addToPlan(researchId, opts = {}) {
   const r = researchData.find(r => r.id == researchId);
   if (!r || planFull(r)) return;
 
   // Add only the single next level. Prerequisites are filled in on demand via
   // the "Complete prerequisites" button — the plan stays exactly as picked.
-  plan.push(makePlanItem(r, nextPlanLevel(r)));
+  const item = makePlanItem(r, nextPlanLevel(r));
+  if (opts.smartPlace) plan.splice(earliestValidIndex(item, plan), 0, item);
+  else plan.push(item);
   sessionHadActivity = true;
   if (hasConsent()) fetch('/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({type:'planner_add', ...(isGuest && {anonId: getOrCreateAnonId()})}) }).catch(()=>{});
   if (!plannerOpen) togglePlanner();
@@ -1747,7 +1762,7 @@ function computePlanSuggestions() {
               scope: 'buildings',
               title: `Upgrade Construction Yard to ${lvlLabel} first`,
               body: `+5% build speed per level. Saves ~${fmtS(cumulativeSaving)} on your ${nonCYItems.length} build steps, costs ${fmtS(cumulativeCost)} total. Net: ~${fmtS(netSaving)} saved.`,
-              action: `addToBuildPlan('construction_yard')`,
+              action: `addToBuildPlan('construction_yard', {smartPlace:true})`,
               netSaving,
             });
           }
@@ -1787,7 +1802,7 @@ function computePlanSuggestions() {
             scope: 'research',
             title: `Research ${r.name} ${lvlLabel} first`,
             body: `+${Math.round(bonus * 100)}% research speed per level. Saves ~${fmtS(cumulativeSaving)} on your ${plan.length} queued items, costs ${fmtS(cumulativeCost)} total. Net: ~${fmtS(netSaving)} saved.`,
-            action: `addToPlan('${r.id}')`,
+            action: `addToPlan('${r.id}', {smartPlace:true})`,
             netSaving,
           });
         }
@@ -1949,12 +1964,14 @@ function makeBuildPlanItem(b, lvl) {
   };
 }
 
-function addToBuildPlan(key) {
+function addToBuildPlan(key, opts = {}) {
   const b = (planetContext.buildings || {})[key];
   if (!b) return;
   const lvl = bNextPlanLevel(b);
   if (b.maxLevel > 0 && lvl > b.maxLevel) return;
-  buildPlan.push(makeBuildPlanItem(b, lvl));
+  const item = makeBuildPlanItem(b, lvl);
+  if (opts.smartPlace) buildPlan.splice(earliestValidIndex(item, buildPlan), 0, item);
+  else buildPlan.push(item);
   setPlannerTab('buildings');
   if (!plannerOpen) togglePlanner();
   renderBuildPlanner();
@@ -2447,25 +2464,46 @@ function computeSchedule() {
   const orderedSet = new Set(order.map(uidOf));
   const cycleBlocked = allItems.filter(i => !orderedSet.has(uidOf(i)));
 
+  // Speed modeling: a queued research-speed research, once it finishes, shrinks the
+  // effective time of every later research item; each Construction Yard level does
+  // the same for later building. Matches the saving computePlanSuggestions advertises
+  // so the ETA reflects the boost instead of just adding its cost.
+  const rSpeedBonus = new Map();
+  for (const r of researchData) {
+    const e = (r.effects || []).find(e => e.type === 'research_speed_bonus');
+    if (e) rSpeedBonus.set(r.key, e.value || 0);
+  }
+  const CY_BUILD_BONUS = 0.05;                      // +5% build speed per CY level
+  const baseBuildMult = planetContext.buildSpeedMult || 1;
+
   // Simulate two lane clocks
   let rClock = 0, bClock = 0;
+  let rReduction = 0, cyLevels = 0;                 // speed accrued from finished boosts
   const finish = new Map();
   const schedule = new Map();
 
   for (const item of order) {
     const uid = uidOf(item);
-    const laneFree = item.track === 'research' ? rClock : bClock;
+    const isR = item.track === 'research';
+    const laneFree = isR ? rClock : bClock;
     let depsFinish = 0, binding = null;
     for (const dep of (ctDeps.get(uid) || [])) {
       const f = finish.get(uidOf(dep)) || 0;
       if (f > depsFinish) { depsFinish = f; binding = dep; }
     }
     const start = Math.max(laneFree, depsFinish);
-    const itemFinish = start + (item.time || 0);
+    const baseTime = item.time || 0;
+    let effTime = baseTime;
+    if (isR && rReduction > 0) effTime = baseTime * Math.max(0.1, 1 - rReduction);
+    else if (!isR && cyLevels > 0) effTime = baseTime * baseBuildMult / (baseBuildMult + CY_BUILD_BONUS * cyLevels);
+    effTime = Math.round(effTime);
+    const itemFinish = start + effTime;
     finish.set(uid, itemFinish);
-    schedule.set(uid, { start, finish: itemFinish, binding: depsFinish > laneFree ? binding : null });
-    if (item.track === 'research') rClock = itemFinish;
-    else bClock = itemFinish;
+    schedule.set(uid, { start, finish: itemFinish, effTime, binding: depsFinish > laneFree ? binding : null });
+    if (isR) rClock = itemFinish; else bClock = itemFinish;
+    // Now finished, this item speeds up everything later on its lane.
+    if (isR && rSpeedBonus.has(item.key)) rReduction += rSpeedBonus.get(item.key);
+    else if (!isR && item.key === 'construction_yard') cyLevels += 1;
   }
 
   for (const item of cycleBlocked) {
@@ -2616,7 +2654,10 @@ function renderTimeline({ schedule, moments }) {
     const s = schedule.get(item.uid);
     const accent = isR ? 'var(--accent2)' : 'var(--ore)';
     const icon = isR ? '⚗' : '🏗';
-    const dur = durFmt(item.time || 0), endsAt = fmtT(s.finish);
+    const baseTime = item.time || 0;
+    const effTime = s.effTime != null ? s.effTime : baseTime;
+    const sped = effTime < baseTime;
+    const dur = durFmt(effTime), endsAt = fmtT(s.finish);
     const warnCls = item.eraUnlocked === false || item.requirementsMet === false ? ' tl-warn' : '';
     const warnTag = item.eraUnlocked === false
       ? `<div style="font-size:10px;color:var(--red);margin-top:2px">Era locked</div>`
@@ -2631,7 +2672,7 @@ function renderTimeline({ schedule, moments }) {
       <div style="display:flex;align-items:flex-start;gap:3px">
         <div style="flex:1;min-width:0">
           <div class="tl-card-name" style="color:${accent}">${icon} ${trunc(item.name, 22)} <span style="color:var(--muted);font-weight:400">Lv${item.toLevel}</span></div>
-          <div class="tl-card-meta">${dur} · →${endsAt}</div>
+          <div class="tl-card-meta">${sped ? `<span style="color:var(--green)" title="sped up from ${durFmt(baseTime)}">⚡${dur}</span>` : dur} · →${endsAt}</div>
           ${warnTag}${bndTag}
         </div>
         <button class="plan-item-remove" onclick="${rmFn}" style="font-size:14px;line-height:1;padding:0;flex-shrink:0">×</button>
